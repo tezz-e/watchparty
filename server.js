@@ -15,10 +15,15 @@ const roomSnapshot = (room) => ({
   updatedAt: now(),
   hostId: room.hostId,
   poll: room.poll,
+  config: room.config,
 });
 
 function makeRoom(id) {
-  return { id, version: 0, playing: false, position: 288, updatedAt: now(), hostId: null, members: new Map(), messages: [], poll: { question: "What should we watch next?", options: ["Moonlit Drive", "Stay for the credits"], votes: {}, voters: {} } };
+  return {
+    id, version: 0, playing: false, position: 0, updatedAt: now(), hostId: null, members: new Map(), messages: [],
+    config: { title: "Untitled watch party", source: "", control: "host" },
+    poll: { question: "What should we watch next?", options: ["Moonlit Drive", "Stay for the credits"], votes: {}, voters: {} },
+  };
 }
 
 function publishPresence(room) {
@@ -51,9 +56,21 @@ io.on("connection", (socket) => {
     publishPresence(room);
   });
 
+  socket.on("room:configure", ({ title, source, control }) => {
+    const room = getRoomFor(socket);
+    if (!room || room.hostId !== socket.id) return;
+    const safeTitle = typeof title === "string" ? title.trim().slice(0, 56) : "";
+    const safeSource = typeof source === "string" && /^https?:\/\//i.test(source) ? source.slice(0, 2048) : "";
+    room.config = { title: safeTitle || room.config.title, source: safeSource, control: control === "shared" ? "shared" : "host" };
+    room.version += 1;
+    io.to(room.id).emit("room:config", room.config);
+    io.to(room.id).emit("playback:state", roomSnapshot(room));
+  });
+
   socket.on("playback:update", ({ playing, position, version }) => {
     const room = getRoomFor(socket);
-    if (!room || room.hostId !== socket.id || typeof position !== "number" || (version !== undefined && version < room.version)) return;
+    const canControl = room?.config.control === "shared" || room?.hostId === socket.id;
+    if (!room || !canControl || typeof position !== "number" || (version !== undefined && version < room.version)) return;
     room.playing = Boolean(playing);
     room.position = Math.max(0, Math.min(position, 744));
     room.updatedAt = now();
