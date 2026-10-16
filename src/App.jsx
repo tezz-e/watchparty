@@ -1,140 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
-const initialMembers = [
-  { name: "Manee", initials: "M", tone: "coral", host: true },
-  { name: "Priya", initials: "P", tone: "lilac" },
-  { name: "Aarav", initials: "A", tone: "mint" },
-  { name: "Nico", initials: "N", tone: "sky" },
-];
-
-const initialMessages = [
-  { name: "Priya", time: "9:41", text: "The colour grading in this scene is unreal.", tone: "lilac" },
-  { name: "Aarav", time: "9:42", text: "Wait for the next shot ✦", tone: "mint" },
-];
+const tints = ["lime", "coral", "violet", "sky"];
+const demoSource = "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4";
+const defaultPoll = { question: "Where do we head after this?", options: ["A quiet drive", "One more short"], votes: {} };
 
 function Icon({ name, size = 18 }) {
-  const paths = {
-    play: "M8 5.6v12.8L18.8 12 8 5.6Z",
-    pause: "M8 5h3.2v14H8zm4.8 0H16v14h-3.2z",
-    volume: "M4 10v4h3l4 3V7l-4 3H4zm10.4 1.2a2.6 2.6 0 0 1 0 1.6m2.1-3.4a5.1 5.1 0 0 1 0 5.2",
-    settings: "M12 8.4A3.6 3.6 0 1 0 12 15.6 3.6 3.6 0 0 0 12 8.4Zm0-5v2m0 13v2m8.6-8.4h-2m-13.2 0h-2m14.9-6.1-1.4 1.4M7.1 16.9l-1.4 1.4m0-12.6 1.4 1.4m9.8 9.8 1.4 1.4",
-    send: "m21 3-7.4 18-3.1-7.4L3 10.5 21 3Zm-10.5 10.5L21 3",
-    link: "M9.5 14.5 14.5 9.5m-7.2 7.7-1.2 1.2a3.1 3.1 0 0 1-4.4-4.4l3-3a3.1 3.1 0 0 1 4.4 0m7.6 2.4a3.1 3.1 0 0 1 0 4.4l-3 3a3.1 3.1 0 0 1-4.4 0",
-    fullscreen: "M8.7 4H4v4.7m11.3 0V4H20v4.7M4 15.3V20h4.7m6.6 0H20v-4.7",
-    spark: "m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z",
-    chevron: "m8 10 4 4 4-4",
-  };
+  const paths = { arrow:"M5 12h13m-5-5 5 5-5 5", plus:"M12 5v14M5 12h14", link:"m9 15 6-6m-7.5 10.5-1 1a3.5 3.5 0 0 1-5-5l3-3a3.5 3.5 0 0 1 5 0m9.5-1 1-1a3.5 3.5 0 0 0-5-5l-3 3a3.5 3.5 0 0 0 0 5", play:"m9 6 10 6-10 6V6Z", pause:"M9 6h2.5v12H9zm4.5 0H16v12h-2.5z", send:"m21 3-7.3 18-3.2-7.5L3 10.4 21 3Zm-10.5 10.5L21 3", close:"m6 6 12 12M18 6 6 18", spark:"m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z", check:"m5 12 4 4L19 6", sound:"M4 10v4h3l4 3V7l-4 3H4zm10.5.5a3 3 0 0 1 0 3m2-5a6 6 0 0 1 0 7", chevron:"m8 10 4 4 4-4", share:"M12 16V3m0 0L7 8m5-5 5 5M5 14v5h14v-5", user:"M20 21a8 8 0 0 0-16 0m12-13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z", globe:"M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-8-9h16M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18", expand:"M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[name]} /></svg>;
 }
+function Wordmark(){return <div className="wordmark"><span className="signal-logo"><i/><i/><i/></span><span>afterglow</span></div>}
+function Avatar({name="?",tint="lime",small=false}){return <span className={`avatar ${tint} ${small?"small":""}`}>{name[0]?.toUpperCase()}</span>}
+function SoftField({children,className=""}){const move=e=>{const r=e.currentTarget.getBoundingClientRect();e.currentTarget.style.setProperty("--x",`${e.clientX-r.left}px`);e.currentTarget.style.setProperty("--y",`${e.clientY-r.top}px`)};return <div onPointerMove={move} className={`soft-field ${className}`}>{children}</div>}
 
-export default function App() {
-  const [playing, setPlaying] = useState(false);
-  const [position, setPosition] = useState(288);
-  const [messages, setMessages] = useState(initialMessages);
-  const [members, setMembers] = useState(initialMembers);
-  const [selfId, setSelfId] = useState(null);
-  const [hostId, setHostId] = useState(null);
-  const [connected, setConnected] = useState(false);
-  const [poll, setPoll] = useState({ question: "What should we watch next?", options: ["Moonlit Drive", "Stay for the credits"], votes: {} });
-  const [draft, setDraft] = useState("");
-  const [reaction, setReaction] = useState(null);
-  const [pollOpen, setPollOpen] = useState(false);
-  const [selectedPoll, setSelectedPoll] = useState(null);
-  const [inviteCopied, setInviteCopied] = useState(false);
-  const timer = useRef();
-  const socket = useRef(null);
+function Identity({onContinue}){const[name,setName]=useState("");const[tint,setTint]=useState("lime");return <SoftField className="identity-page"><div className="identity-nav"><Wordmark/><span className="nav-note">SYNCED VIEWING, WITHOUT THE FUSS</span></div><div className="identity-grid"><section className="identity-copy"><p className="eyebrow"><span/>YOUR REMOTE, EVERYWHERE</p><h1>Better nights<br/>start together.</h1><p className="lede">A small, calm place to start a room, bring friends in, and stay on the same frame.</p><div className="principles"><span><i>01</i> no accounts required</span><span><i>02</i> your room, your link</span><span><i>03</i> everybody stays in sync</span></div></section><section className="identity-card signal-border"><div className="stepper"><span className="active">01</span><i/><span>02</span><i/><span>03</span></div><div className="identity-card-head"><span className="eyebrow">SET YOUR PRESENCE</span><h2>What should we call you?</h2><p>This is how you’ll appear in every room. You can change it later.</p></div><label className="field-label">DISPLAY NAME<input autoFocus value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Manee" maxLength="28"/></label><div className="tint-row"><span>YOUR SIGNAL COLOUR</span><div>{tints.map(c=><button key={c} className={`tint-dot ${c} ${tint===c?"selected":""}`} onClick={()=>setTint(c)} aria-label={`Choose ${c}`}>{tint===c&&<Icon name="check" size={12}/>}</button>)}</div></div><button className="primary-action" disabled={!name.trim()} onClick={()=>onContinue({name:name.trim(),tint})}>Enter the control room <Icon name="arrow"/></button><p className="quiet-note">By continuing, you’re starting a local profile in this browser.</p></section></div><div className="identity-footer"><span>AFTERGLOW / BUILD 01</span><span>MADE FOR MOVIE NIGHTS</span></div></SoftField>}
 
-  useEffect(() => {
-    const roomId = "afterglow-26";
-    const savedName = sessionStorage.getItem("afterglow-name");
-    const name = savedName || `Guest ${Math.floor(100 + Math.random() * 900)}`;
-    sessionStorage.setItem("afterglow-name", name);
-    const client = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:3001", { transports: ["websocket", "polling"] });
-    socket.current = client;
-    client.on("connect", () => { setConnected(true); client.emit("room:join", { roomId, name }); });
-    client.on("disconnect", () => setConnected(false));
-    client.on("room:joined", ({ selfId: id, state, messages: history }) => {
-      setSelfId(id); setHostId(state.hostId); setPlaying(state.playing); setPosition(state.position); setPoll(state.poll); setMessages(history.map((message) => ({ ...message, time: new Date(message.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })));
-    });
-    client.on("room:presence", (nextMembers) => setMembers(nextMembers.map((member, index) => ({ ...member, initials: member.name[0]?.toUpperCase(), tone: ["coral", "lilac", "mint", "sky"][index % 4] }))));
-    client.on("playback:state", (state) => { setHostId(state.hostId); setPlaying(state.playing); setPosition(state.position); });
-    client.on("chat:message", (message) => setMessages((current) => [...current, { ...message, time: new Date(message.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), tone: message.senderId === client.id ? "coral" : "lilac" }]));
-    client.on("reaction:burst", ({ emoji }) => setReaction(emoji));
-    client.on("poll:state", setPoll);
-    return () => client.close();
-  }, []);
+function Lobby({profile,onCreate,onJoin}){const[join,setJoin]=useState(false);const[code,setCode]=useState("");return <SoftField className="lobby-page"><header className="lobby-nav"><Wordmark/><div className="nav-center"><span className="live-pulse"/>REALTIME READY</div><div className="profile-pill"><Avatar name={profile.name} tint={profile.tint} small/><span>{profile.name}</span><button><Icon name="chevron" size={14}/></button></div></header><main className="lobby-main"><section className="lobby-hero"><p className="eyebrow"><span/>CONTROL ROOM</p><h1>Good evening,<br/><em>{profile.name}.</em></h1><p>Start something worth sharing, or use a room code to find your people.</p><div className="lobby-actions"><button className="primary-action" onClick={onCreate}><Icon name="plus"/> Start a room</button><button className="secondary-action" onClick={()=>setJoin(!join)}><Icon name="link"/> Join with a code</button></div>{join&&<form className="join-tray" onSubmit={e=>{e.preventDefault();if(code.trim())onJoin(code.trim().toLowerCase())}}><input autoFocus value={code} onChange={e=>setCode(e.target.value.replace(/\s/g,""))} placeholder="room-code"/><button>Join <Icon name="arrow" size={16}/></button></form>}</section><section className="lobby-instrument"><div className="instrument-top"><span>TONIGHT’S SIGNAL</span><b>00:00:00</b></div><div className="oscilloscope">{Array.from({length:12},(_,i)=><i key={i}/>)}</div><div className="instrument-readout"><div><span>CONNECTION</span><b><i/> ready</b></div><div><span>LATENCY</span><b>— ms</b></div><div><span>ROOMS</span><b>private</b></div></div><div className="deck-knobs"><button/><button/><button/><button/></div></section></main><section className="flow-strip"><div><b>01</b><span>Pick a name once</span></div><i/><div><b>02</b><span>Make or join a room</span></div><i/><div><b>03</b><span>Send one clean link</span></div><i/><div><b>04</b><span>Press play together</span></div></section></SoftField>}
 
-  useEffect(() => {
-    if (playing) timer.current = setInterval(() => setPosition((value) => Math.min(value + 1, 744)), 1000);
-    return () => clearInterval(timer.current);
-  }, [playing]);
+function CreateRoom({onClose,onEnter}){const[title,setTitle]=useState("Friday, but make it quiet");const[source,setSource]=useState(demoSource);const[control,setControl]=useState("host");return <div className="modal-backdrop"><form className="setup-modal" onSubmit={e=>{e.preventDefault();onEnter({id:`room-${Math.random().toString(36).slice(2,7)}`,title,source,control})}}><button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button><div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Set the room’s tone.</h2><p>These details travel with the invitation, so friends know what they’re stepping into.</p></div><label className="field-label">ROOM NAME<input value={title} onChange={e=>setTitle(e.target.value)} maxLength="56"/></label><label className="field-label">VIDEO URL <small>OPTIONAL</small><input value={source} onChange={e=>setSource(e.target.value)} placeholder="Paste an .mp4 URL"/></label><fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control==="host"?"chosen":""} onClick={()=>setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control==="shared"?"chosen":""} onClick={()=>setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset><button className="primary-action">Create the room <Icon name="arrow"/></button><p className="quiet-note">You’ll be the first host. Invite people once the room opens.</p></form></div>}
 
-  useEffect(() => {
-    if (!reaction) return;
-    const timeout = setTimeout(() => setReaction(null), 850);
-    return () => clearTimeout(timeout);
-  }, [reaction]);
+function Room({profile,room,onLeave}){const[playing,setPlaying]=useState(false),[position,setPosition]=useState(0),[connected,setConnected]=useState(false),[selfId,setSelfId]=useState(null),[hostId,setHostId]=useState(null),[members,setMembers]=useState([]),[messages,setMessages]=useState([]),[draft,setDraft]=useState(""),[reaction,setReaction]=useState(null),[poll,setPoll]=useState(defaultPoll),[drawer,setDrawer]=useState("chat"),[copied,setCopied]=useState(false);const socket=useRef(null),video=useRef(null),sentAt=useRef(0);const isHost=room.control==="shared"||!connected||hostId===selfId;
+useEffect(()=>{const client=io(import.meta.env.VITE_SOCKET_URL||"http://localhost:3001",{transports:["websocket","polling"]});socket.current=client;client.on("connect",()=>{setConnected(true);client.emit("room:join",{roomId:room.id,name:profile.name})});client.on("disconnect",()=>setConnected(false));client.on("room:joined",({selfId:id,state,messages:history})=>{setSelfId(id);setHostId(state.hostId);setPlaying(state.playing);setPosition(state.position);setPoll(state.poll);setMessages(history)});client.on("room:presence",setMembers);client.on("playback:state",s=>{setHostId(s.hostId);setPlaying(s.playing);setPosition(s.position)});client.on("chat:message",m=>setMessages(v=>[...v,m]));client.on("reaction:burst",({emoji})=>setReaction(emoji));client.on("poll:state",setPoll);return()=>client.close()},[profile.name,room.id]);
+useEffect(()=>{if(!video.current)return;if(Math.abs(video.current.currentTime-position)>1.4)video.current.currentTime=position;if(playing)video.current.play().catch(()=>{});else video.current.pause()},[playing,position]);useEffect(()=>{if(!reaction)return;const id=setTimeout(()=>setReaction(null),900);return()=>clearTimeout(id)},[reaction]);
+const broadcast=(next,p)=>{setPlaying(next);setPosition(p);socket.current?.emit("playback:update",{playing:next,position:p})};const onTime=e=>{if(!isHost||!playing||Date.now()-sentAt.current<2500)return;sentAt.current=Date.now();broadcast(true,e.currentTarget.currentTime)};const share=async()=>{await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`);setCopied(true);setTimeout(()=>setCopied(false),1600)};const total=Object.values(poll.votes||{}).reduce((a,b)=>a+b,0),fm=n=>`${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,"0")}`;
+return <SoftField className="room-page"><header className="room-nav"><button className="back-button" onClick={onLeave}>← Lobby</button><Wordmark/><div className="room-status"><span className={connected?"status-led":"status-led dim"}/><span>{connected?"LIVE SYNC":"CONNECTING"}</span><b>{room.id}</b></div><button className="invite-compact" onClick={share}>{copied?"LINK COPIED":"INVITE"}<Icon name="share" size={15}/></button></header><main className="room-layout"><section className="view-deck"><div className="now-line"><span>NOW PLAYING</span><b>{room.title}</b><i/><span>{isHost?"YOU HAVE THE REMOTE":"HOST HAS THE REMOTE"}</span></div><div className="screen-chassis"><div className="screen-beam"/><video ref={video} src={room.source} onTimeUpdate={onTime} playsInline/><div className="screen-fallback"><span>NO SIGNAL / LOAD A VIDEO LINK</span><div className="orbital-art"><i/><i/><i/></div></div>{reaction&&<div className="reaction-pop">{reaction}</div>}<div className="watching-rack">{members.slice(0,5).map((m,i)=><Avatar key={m.id} name={m.name} tint={tints[i%4]} small/>)}<span>{members.length||1} IN ROOM</span></div><div className="transport"><button className="transport-play" disabled={!isHost} onClick={()=>broadcast(!playing,video.current?.currentTime||position)}><Icon name={playing?"pause":"play"} size={18}/></button><span>{fm(position)}</span><input disabled={!isHost} type="range" min="0" max="744" value={position} onChange={e=>{const p=Number(e.target.value);if(video.current)video.current.currentTime=p;broadcast(playing,p)}} style={{"--track":`${Math.min(position/744*100,100)}%`}}/><span>12:24</span><button className="plain-icon"><Icon name="sound"/></button><button className="plain-icon"><Icon name="expand"/></button></div></div><div className="room-notes"><div><span>ON DECK</span><b>The quiet hours</b><small>14:08 · short film</small></div><div className="reaction-dock">{["✦","♡","⚡","◌"].map(e=><button key={e} onClick={()=>socket.current?.emit("reaction:send",{emoji:e})}>{e}</button>)}</div></div></section><aside className="room-drawer"><div className="drawer-tabs"><button className={drawer==="chat"?"active":""} onClick={()=>setDrawer("chat")}>Chat <b>{messages.length}</b></button><button className={drawer==="people"?"active":""} onClick={()=>setDrawer("people")}>People <b>{members.length}</b></button><button className={drawer==="poll"?"active":""} onClick={()=>setDrawer("poll")}>Poll</button></div>{drawer==="chat"&&<><div className="drawer-head"><span className="eyebrow"><span/>LIVE THREAD</span><h3>Leave a thought.</h3></div><div className="message-list">{messages.length?messages.map(m=><article key={m.id}><Avatar name={m.name} tint="violet" small/><p><b>{m.name}</b><span>{m.text}</span></p></article>):<div className="empty-thread">The room is quiet.<br/>Say something worth keeping.</div>}</div><form className="message-box" onSubmit={e=>{e.preventDefault();if(draft.trim()){socket.current?.emit("chat:send",{text:draft.trim()});setDraft("")}}}><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Say something…"/><button><Icon name="send"/></button></form></>}{drawer==="people"&&<><div className="drawer-head"><span className="eyebrow"><span/>IN THIS ROOM</span><h3>{members.length||1} presence detected.</h3></div><div className="member-list">{members.map((m,i)=><div key={m.id}><Avatar name={m.name} tint={tints[i%4]}/><span>{m.name}{m.id===hostId&&<small>HOST</small>}</span><i/></div>)}</div></>}{drawer==="poll"&&<div className="poll-pane"><span className="eyebrow"><span/>GROUP DECISION</span><h3>{poll.question}</h3>{poll.options.map((o,i)=><button key={o} onClick={()=>socket.current?.emit("poll:vote",{option:i})}><span>{o}</span><b>{total?Math.round((poll.votes[i]||0)/total*100):0}%</b><i style={{width:`${total?(poll.votes[i]||0)/total*100:0}%`}}/></button>)}<small>{total} votes · live for everyone</small></div>}</aside></main></SoftField>}
 
-  const formatTime = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-  const isHost = !connected || hostId === selfId;
-  const changePlayback = (nextPlaying = playing, nextPosition = position) => {
-    setPlaying(nextPlaying); setPosition(nextPosition);
-    socket.current?.emit("playback:update", { playing: nextPlaying, position: nextPosition });
-  };
-  const sendMessage = (event) => {
-    event.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
-    if (connected) socket.current?.emit("chat:send", { text });
-    else setMessages((current) => [...current, { name: "Manee", time: "now", text, tone: "coral" }]);
-    setDraft("");
-  };
-  const copyInvite = async () => {
-    await navigator.clipboard?.writeText(`${window.location.origin}/room/afterglow-26`);
-    setInviteCopied(true);
-    setTimeout(() => setInviteCopied(false), 1600);
-  };
-
-  const sendReaction = (emoji) => { setReaction(emoji); socket.current?.emit("reaction:send", { emoji }); };
-  const vote = (option) => { setSelectedPoll(option); socket.current?.emit("poll:vote", { option }); };
-  const totalVotes = Object.values(poll.votes || {}).reduce((sum, value) => sum + value, 0);
-  return <main className="app-shell">
-    <header className="topbar">
-      <a className="brand" href="#top"><span className="brand-mark"><i></i><i></i><i></i></span><span>afterglow</span></a>
-      <div className="room-chip"><span className="live-dot"></span><span>ROOM</span><b>afterglow-26</b><button className="icon-button subtle" onClick={copyInvite} aria-label="Copy invite link"><Icon name="link" size={15}/></button></div>
-      <div className="top-actions"><span className="sync-state"><span className="sync-orbit"></span>{connected ? "synced" : "demo mode"}</span><button className="invite-button" onClick={copyInvite}>{inviteCopied ? "Invite copied" : "Invite friends"}<Icon name="link" size={16}/></button><button className="profile" aria-label="Your profile">M</button></div>
-    </header>
-
-    <section className="content-grid" id="top">
-      <section className="stage-column">
-        <div className="eyebrow-row"><span>NOW WATCHING</span><span className="episode">S01 · E04</span></div>
-        <div className="video-frame">
-          <div className="film-grain"></div><div className="aurora aurora-one"></div><div className="aurora aurora-two"></div>
-          <div className="scene-copy"><span>Original short film</span><h1>THE<br/>IN-BETWEEN</h1><p>Somewhere between here and there, we learned how to stay.</p></div>
-          <div className="scene-credit">A FILM BY ALEX MORGAN<br/><span>2025</span></div>
-          {reaction && <span className="reaction-burst">{reaction}</span>}
-          <div className="member-pips">{members.slice(0, 3).map((member) => <span key={member.name} className={`mini-avatar ${member.tone}`}>{member.initials}</span>)}<span className="watching-now">4 watching</span></div>
-          <div className="player-controls">
-            <button className="play-button" onClick={() => isHost && changePlayback(!playing)} aria-label={playing ? "Pause" : "Play"} title={isHost ? "Control playback" : "Only the host controls playback"}><Icon name={playing ? "pause" : "play"} size={20}/></button>
-            <span className="time">{formatTime(position)} <i>/</i> 12:24</span>
-            <input aria-label="Video timeline" type="range" min="0" max="744" value={position} disabled={!isHost} onChange={(event) => changePlayback(playing, Number(event.target.value))} style={{ "--progress": `${(position / 744) * 100}%` }} />
-            <button className="control-button" aria-label="Volume"><Icon name="volume"/></button><button className="control-button" aria-label="Settings"><Icon name="settings"/></button><button className="control-button" aria-label="Fullscreen"><Icon name="fullscreen"/></button>
-          </div>
-        </div>
-        <div className="meta-row"><div><h2>The In-Between</h2><p>Tonight's pick · 12 min</p></div><div className="reaction-row"><button onClick={() => sendReaction("♡")} aria-label="Love">♡</button><button onClick={() => sendReaction("✦")} aria-label="Spark">✦</button><button onClick={() => sendReaction("⚡")} aria-label="Excited">⚡</button><button onClick={() => sendReaction("😮")} aria-label="Surprised">😮</button></div></div>
-        <section className="queue-section"><div className="section-title"><span>UP NEXT</span><button>View queue <Icon name="chevron" size={15}/></button></div><div className="queue-card"><div className="queue-poster"><span>01</span></div><div><h3>Moonlit Drive</h3><p>Short film · 08:31</p></div><button className="queue-play"><Icon name="play" size={15}/></button></div><div className="queue-card"><div className="queue-poster second"><span>02</span></div><div><h3>Stay for the credits</h3><p>Music video · 03:48</p></div><button className="queue-play"><Icon name="play" size={15}/></button></div></section>
-      </section>
-
-      <aside className="side-panel">
-        <section className="people-card"><div className="panel-heading"><div><span className="section-kicker">IN THE ROOM</span><h2>{members.length} {members.length === 1 ? "friend" : "friends"} watching</h2></div><button className="more-button">•••</button></div><div className="people-list">{members.map((member) => <div className="person" key={member.id || member.name}><span className={`avatar ${member.tone}`}>{member.initials}<i className="online"></i></span><span>{member.name} {(member.id || (member.host && selfId)) === hostId && <small>HOST</small>}</span>{member.name === "Aarav" && <span className="speaking-bars"><i></i><i></i><i></i></span>}</div>)}</div></section>
-
-        <section className="chat-card"><div className="chat-top"><div><span className="section-kicker">LIVE CHAT</span><h2>Keep the moment going</h2></div><button className={`poll-button ${pollOpen ? "active" : ""}`} onClick={() => setPollOpen(!pollOpen)}><Icon name="spark" size={15}/> Poll</button></div>
-          {pollOpen && <div className="poll-card"><span className="poll-label">YOUR TURN</span><h3>{poll.question}</h3>{poll.options.map((option, index) => <button key={option} className={selectedPoll === index ? "selected" : ""} onClick={() => vote(index)}><span>{option}</span><b>{totalVotes ? `${Math.round(((poll.votes[index] || 0) / totalVotes) * 100)}%` : "—"}</b></button>)}<small>{selectedPoll === null ? `${totalVotes} votes so far` : "Vote saved · updates everyone"}</small></div>}
-          <div className="messages">{messages.map((message, index) => <div className="message" key={`${message.name}-${index}`}><span className={`message-avatar ${message.tone}`}>{message.name[0]}</span><p><b>{message.name}</b><time>{message.time}</time><span>{message.text}</span></p></div>)}</div>
-          <form className="chat-input" onSubmit={sendMessage}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Say something nice…"/><button type="submit" aria-label="Send message"><Icon name="send" size={17}/></button></form>
-        </section>
-      </aside>
-    </section>
-  </main>;
-}
+export default function App(){const[profile,setProfile]=useState(null),[view,setView]=useState("identity"),[room,setRoom]=useState(null),[setup,setSetup]=useState(false);const continueAs=p=>{sessionStorage.setItem("afterglow-profile",JSON.stringify(p));setProfile(p);setView("lobby")};const enter=r=>{setRoom(r);setSetup(false);setView("room")};if(view==="identity")return <Identity onContinue={continueAs}/>;if(view==="room"&&room)return <Room profile={profile} room={room} onLeave={()=>setView("lobby")}/>;return <><Lobby profile={profile} onCreate={()=>setSetup(true)} onJoin={id=>enter({id,title:"A room you were invited to",source:demoSource,control:"host"})}/>{setup&&<CreateRoom onClose={()=>setSetup(false)} onEnter={enter}/>}</>}
