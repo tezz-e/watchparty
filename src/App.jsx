@@ -34,5 +34,5 @@ export default function App() {
   useEffect(() => { if(saved && invite.current) enter({ id: invite.current, title: "An invited room", source: "", control: "host" }); }, []);
   if(view === "identity") return <Identity theme={theme} onThemeChange={changeTheme} onContinue={continueAs}/>;
   if(view === "room" && room) return <Room profile={profile} room={room} theme={theme} onThemeChange={changeTheme} onLeave={()=>setView("lobby")}/>;
-  return <><Lobby profile={profile} theme={theme} onThemeChange={changeTheme} onCreate={()=>setSetup(true)} onJoin={id=>enter({ id, title: "An invited room", source: "", control: "host" })}/>{setup&&<CreateRoom onClose={()=>setSetup(false)} onEnter={enter}/>}</>;
+  return <><Lobby profile={profile} theme={theme} onThemeChange={changeTheme} onCreate={()=>setSetup(true)} onJoin={id=>enter({ id, title: "An invited room", source: "", control: "host" })}/>{setup&&<CreateRoom theme={theme} onClose={()=>setSetup(false)} onEnter={enter}/>}</>;
 }

@@ -1,13 +1,16 @@
-.soft-field {
+:is(.soft-field, .modal-backdrop) {
   --theme-accent: #c8ff76;
   --theme-highlight: #d7ff9a;
   --theme-ink: #172013;
   --theme-glow: rgba(184, 255, 113, .075);
   --theme-border: #94bb60;
+}
+
+.soft-field {
   background: radial-gradient(540px circle at var(--x, 76%) var(--y, 18%), var(--theme-glow), transparent 43%), #0b0e0c;
 }
 
-.soft-field[data-theme="amber"] {
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] {
   --theme-accent: #ffc16e;
   --theme-highlight: #ffdda0;
   --theme-ink: #35220f;
@@ -15,7 +18,7 @@
   --theme-border: #c9944d;
 }
 
-.soft-field[data-theme="blue"] {
+:is(.soft-field, .modal-backdrop)[data-theme="blue"] {
   --theme-accent: #8ecbff;
   --theme-highlight: #b8e0ff;
   --theme-ink: #102336;
@@ -62,56 +65,149 @@
   gap: 16px;
 }
 
-.soft-field[data-theme] .signal-logo i,
-.soft-field[data-theme] .eyebrow > span,
-.soft-field[data-theme] .live-pulse,
-.soft-field[data-theme] .status-led,
-.soft-field[data-theme] .oscilloscope i {
+[data-theme] .signal-logo i,
+[data-theme] .eyebrow > span,
+[data-theme] .live-pulse,
+[data-theme] .status-led,
+[data-theme] .oscilloscope i {
   background-color: var(--theme-accent);
   box-shadow: 0 0 10px var(--theme-accent);
 }
 
-.soft-field[data-theme] .primary-action,
-.soft-field[data-theme] .poll-submit,
-.soft-field[data-theme] .transport-play {
+[data-theme] .primary-action,
+[data-theme] .poll-submit,
+[data-theme] .transport-play {
   color: var(--theme-ink);
   background-color: var(--theme-accent);
   box-shadow: 0 0 0 1px var(--theme-highlight) inset, 0 12px 30px color-mix(in srgb, var(--theme-accent) 16%, transparent);
 }
 
-.soft-field[data-theme] .primary-action:hover:not(:disabled) {
+[data-theme] .primary-action:hover:not(:disabled) {
   box-shadow: 0 0 0 1px var(--theme-highlight) inset, 0 16px 38px color-mix(in srgb, var(--theme-accent) 23%, transparent);
 }
 
-.soft-field[data-theme] .identity-copy h1::first-line,
-.soft-field[data-theme] .lobby-hero h1 em,
-.soft-field[data-theme] .stepper .active,
-.soft-field[data-theme] .principles i,
-.soft-field[data-theme] .instrument-top b,
-.soft-field[data-theme] .join-tray button,
-.soft-field[data-theme] .queue-list button.voted,
-.soft-field[data-theme] .poll-add-option,
-.soft-field[data-theme] .poll-pane > button.selected,
-.soft-field[data-theme] .room-status b {
+[data-theme] .identity-copy h1::first-line,
+[data-theme] .lobby-hero h1 em,
+[data-theme] .stepper .active,
+[data-theme] .principles i,
+[data-theme] .instrument-top b,
+[data-theme] .join-tray button,
+[data-theme] .queue-list button.voted,
+[data-theme] .poll-add-option,
+[data-theme] .poll-pane > button.selected,
+[data-theme] .room-status b {
   color: var(--theme-highlight);
 }
 
-.soft-field[data-theme] .join-tray button,
-.soft-field[data-theme] .poll-add-option,
-.soft-field[data-theme] .poll-submit,
-.soft-field[data-theme] .poll-pane > button.selected,
-.soft-field[data-theme] .queue-list button.voted {
+[data-theme] .join-tray button,
+[data-theme] .poll-add-option,
+[data-theme] .poll-submit,
+[data-theme] .poll-pane > button.selected,
+[data-theme] .queue-list button.voted {
   border-color: var(--theme-border);
 }
 
-.soft-field[data-theme] .field-label input:focus,
-.soft-field[data-theme] .category-row button.active {
+[data-theme] .field-label input:focus,
+[data-theme] .category-row button.active {
   border-color: var(--theme-border);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 12%, transparent);
 }
 
-.soft-field[data-theme] .transport input[type="range"] {
+[data-theme] .transport input[type="range"] {
   accent-color: var(--theme-accent);
+}
+
+[data-theme] .signal-border:before {
+  background: conic-gradient(from var(--a, 0deg), transparent 0 40%, var(--theme-accent) 47%, transparent 54% 100%);
+}
+
+[data-theme] .instrument-readout b i,
+[data-theme] .flow-strip b,
+[data-theme] .control-choices button svg,
+[data-theme] .drawer-tabs b,
+[data-theme] .message-box button,
+[data-theme] .member-list small,
+[data-theme] .member-list i,
+[data-theme] .poll-pane button b,
+[data-theme] .catalog-card button,
+[data-theme] .catalog-select,
+[data-theme] .catalog-availability.available,
+[data-theme] .external-clock-status,
+[data-theme] .livekit-controls .eyebrow {
+  color: var(--theme-highlight);
+}
+
+[data-theme] .instrument-readout b i,
+[data-theme] .member-list i {
+  background-color: var(--theme-accent);
+}
+
+[data-theme] .drawer-tabs .active,
+[data-theme] .catalog-card:focus-visible {
+  border-color: var(--theme-border);
+}
+
+[data-theme] .category-row button.active {
+  color: var(--theme-ink);
+  background-color: var(--theme-accent);
+  border-color: var(--theme-accent);
+}
+
+[data-theme] .catalog-service-actions button {
+  color: var(--theme-highlight);
+  border-color: var(--theme-border);
+  background: color-mix(in srgb, var(--theme-accent) 8%, #111612);
+}
+
+[data-theme] .control-choices .chosen,
+[data-theme] .external-ready-list span.ready {
+  border-color: var(--theme-border);
+  background: color-mix(in srgb, var(--theme-accent) 12%, #111612);
+}
+
+[data-theme] .external-ready-toggle.ready,
+[data-theme] .external-countdown-button {
+  border-color: var(--theme-border);
+  color: var(--theme-highlight);
+}
+
+[data-theme] .queue-list button,
+[data-theme] .member-transfer,
+[data-theme] .external-offset button {
+  color: var(--theme-highlight);
+}
+
+[data-theme] .queue-list button.voted {
+  color: var(--theme-highlight);
+  background: color-mix(in srgb, var(--theme-accent) 13%, #111612);
+}
+
+[data-theme] .transport-play {
+  background: var(--theme-accent);
+}
+
+[data-theme] .avatar.lime {
+  background-color: var(--theme-accent);
+}
+
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] .identity-card,
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] .lobby-instrument,
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] .join-tray,
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] .reaction-highlights,
+.modal-backdrop[data-theme="amber"] .catalog-card {
+  background-color: #191510;
+}
+
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] .lobby-instrument {
+  background-image: linear-gradient(135deg, #201910, #110e0a);
+}
+
+:is(.soft-field, .modal-backdrop)[data-theme="amber"] .lobby-instrument:after {
+  border-color: color-mix(in srgb, var(--theme-accent) 15%, transparent);
+}
+
+.modal-backdrop[data-theme="amber"] .catalog-card {
+  background: linear-gradient(145deg, #1b1711, #110f0c);
 }
 
 @media (max-width: 540px) {

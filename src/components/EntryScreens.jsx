@@ -141,7 +141,7 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
   );
 }
 
-export function CreateRoom({ onClose, onEnter }) {
+export function CreateRoom({ onClose, onEnter, theme = "green" }) {
   const [title, setTitle] = useState("Friday, but make it quiet");
   const [source, setSource] = useState("");
   const [control, setControl] = useState("host");
@@ -155,7 +155,7 @@ export function CreateRoom({ onClose, onEnter }) {
   const providerLabel = provider === "youtube" ? "YOUTUBE VIDEO URL" : provider === "hls" ? "HLS STREAM URL" : provider === "external" ? `${platform?.name.toUpperCase()} LINK` : "VIDEO URL";
 
   return (
-    <div className="modal-backdrop">
+    <div className="modal-backdrop" data-theme={theme}>
       <form className="setup-modal setup-modal-wide" onSubmit={event => { event.preventDefault(); if (canCreate) onEnter({ id: roomId(), title, source, control, kind: provider, create: true }); }}>
         <button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button>
         <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>

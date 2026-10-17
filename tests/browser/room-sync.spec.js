@@ -22,7 +22,20 @@ test("two browsers load the same local clip and synchronize playback", async ({ 
 
     await host.getByLabel("DISPLAY NAME").fill("Browser host");
     await host.getByRole("button", { name: /Enter the control room/ }).click();
+    await expect.poll(() => host.evaluate(() => getComputedStyle(document.querySelector(".flow-strip b")).color))
+      .toBe("rgb(255, 221, 160)");
+    await expect.poll(() => host.evaluate(() => getComputedStyle(document.querySelector(".instrument-readout b i")).backgroundColor))
+      .toBe("rgb(255, 193, 110)");
     await host.getByRole("button", { name: /Start a room/ }).click();
+    await expect(host.locator(".modal-backdrop")).toHaveAttribute("data-theme", "amber");
+    await expect.poll(() => host.evaluate(() => getComputedStyle(document.querySelector(".modal-backdrop .category-row button.active")).backgroundColor))
+      .toBe("rgb(255, 193, 110)");
+    await expect.poll(() => host.evaluate(() => getComputedStyle(document.querySelector(".modal-backdrop .catalog-card .catalog-select")).color))
+      .toBe("rgb(255, 221, 160)");
+    await expect.poll(() => host.evaluate(() => getComputedStyle(document.querySelector(".modal-backdrop .catalog-service-actions button")).color))
+      .toBe("rgb(255, 221, 160)");
+    await expect.poll(() => host.evaluate(() => getComputedStyle(document.querySelector(".modal-backdrop .eyebrow > span")).backgroundColor))
+      .toBe("rgb(255, 193, 110)");
     const clipUrl = `${baseURL}/tests/fixtures/afterglow-timecode.webm`;
     await host.getByLabel("VIDEO URL").fill(clipUrl);
     await host.getByRole("button", { name: /Create the room/ }).click();
