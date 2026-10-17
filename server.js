@@ -4,116 +4,361 @@ import { Server } from "socket.io";
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: "*" } });
+const io = new Server(httpServer, { cors: { origin: true, methods: ["GET", "POST"] } });
+
+const PORT = process.env.PORT || 3001;
+const MAX_MEMBERS = 20;
+const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS) || 15_000;
 const rooms = new Map();
+const disconnectTimers = new Map();
+const moodByEmoji = { "✨": "uplifting", "♥": "cozy", "⚡": "energetic", "👏": "thrilling", "😂": "playful" };
+const moodOrder = ["uplifting", "cozy", "energetic", "thrilling", "playful"];
 
 const now = () => Date.now();
-const roomSnapshot = (room) => ({
-  version: room.version,
-  playing: room.playing,
-  position: room.playing ? room.position + (now() - room.updatedAt) / 1000 : room.position,
-  updatedAt: now(),
-  hostId: room.hostId,
-  poll: room.poll,
-  config: room.config,
-});
+const cleanText = (value, fallback = "", max = 120) => {
+  if (typeof value !== "string") return fallback;
+  return value.replace(/[<>]/g, "").trim().slice(0, max) || fallback;
+};
+const validRoomId = (value) => typeof value === "string" && /^[a-z0-9-]{3,40}$/i.test(value);
+const validMemberId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{8,100}$/.test(value);
+const validMediaUrl = (value) => {
+  if (typeof value !== "string" || !value) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:")
+      && /\.(mp4|webm)$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+};
 
 function makeRoom(id) {
   return {
-    id, version: 0, playing: false, position: 0, updatedAt: now(), hostId: null, members: new Map(), messages: [],
+    id,
+    version: 0,
+    playing: false,
+    position: 0,
+    updatedAt: now(),
+    hostId: null,
+    members: new Map(),
+    messages: [],
     config: { title: "Untitled watch party", source: "", control: "host" },
-    poll: { question: "What should we watch next?", options: ["Moonlit Drive", "Stay for the credits"], votes: {}, voters: {} },
+    playlist: [],
+    poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} },
+    moods: {},
+    telemetry: { commands: 0, driftSamples: 0, driftTotal: 0, maxDrift: 0, deliverySamples: 0, deliveryTotal: 0, deliveryTimeouts: 0 },
   };
 }
 
-function publishPresence(room) {
-  const members = [...room.members.values()].map((member) => ({ ...member, host: member.id === room.hostId }));
-  io.to(room.id).emit("room:presence", members);
+function currentPosition(room) {
+  if (!room.playing) return room.position;
+  return Math.max(0, room.position + (now() - room.updatedAt) / 1000);
+}
+
+function roomSnapshot(room) {
+  const moodCounts = Object.values(room.moods).reduce((counts, mood) => {
+    counts[mood] = (counts[mood] || 0) + 1;
+    return counts;
+  }, {});
+  const mood = moodOrder.reduce((leading, candidate) => {
+    if ((moodCounts[candidate] || 0) > (moodCounts[leading] || 0)) return candidate;
+    return leading;
+  }, null);
+  return {
+    version: room.version,
+    playing: room.playing,
+    position: currentPosition(room),
+    updatedAt: now(),
+    hostId: room.hostId,
+    config: room.config,
+    playlist: room.playlist,
+    poll: room.poll,
+    mood: { current: mood, counts: moodCounts, voters: Object.keys(room.moods).length },
+    telemetry: {
+      commands: room.telemetry.commands,
+      driftSamples: room.telemetry.driftSamples,
+      averageDrift: room.telemetry.driftSamples ? room.telemetry.driftTotal / room.telemetry.driftSamples : null,
+      maxDrift: room.telemetry.maxDrift,
+      averageDeliveryRoundTripMs: room.telemetry.deliverySamples ? room.telemetry.deliveryTotal / room.telemetry.deliverySamples : null,
+      deliverySamples: room.telemetry.deliverySamples,
+      deliveryTimeouts: room.telemetry.deliveryTimeouts,
+    },
+  };
+}
+
+function publishPlayback(room, payload) {
+  const startedAt = process.hrtime.bigint();
+  io.to(room.id).timeout(5_000).emit("playback:state", payload, (error) => {
+    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    if (error) room.telemetry.deliveryTimeouts += 1;
+    else {
+      room.telemetry.deliverySamples += 1;
+      room.telemetry.deliveryTotal += elapsedMs;
+    }
+    io.to(room.id).emit("room:telemetry", roomSnapshot(room).telemetry);
+  });
+}
+
+function memberList(room) {
+  return [...room.members.values()]
+    .sort((a, b) => a.joinedAt - b.joinedAt)
+    .map(({ id, name, joinedAt, online }) => ({ id, name, joinedAt, online, host: id === room.hostId }));
+}
+
+function onlineMembers(room) {
+  return [...room.members.values()].filter((member) => member.online);
 }
 
 function electHost(room) {
-  const nextHost = [...room.members.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0];
-  room.hostId = nextHost?.id ?? null;
-  room.version += 1;
-  room.updatedAt = now();
+  const next = onlineMembers(room).sort((a, b) => a.joinedAt - b.joinedAt)[0];
+  room.hostId = next?.id ?? null;
 }
 
-function getRoomFor(socket) {
-  return socket.data.roomId ? rooms.get(socket.data.roomId) : null;
+function publishPresence(room) {
+  io.to(room.id).emit("room:presence", memberList(room));
 }
+
+function publishState(room) {
+  io.to(room.id).emit("room:state", roomSnapshot(room));
+}
+
+function timerKey(roomId, memberId) {
+  return `${roomId}:${memberId}`;
+}
+
+function clearDisconnectTimer(roomId, memberId) {
+  const key = timerKey(roomId, memberId);
+  const timer = disconnectTimers.get(key);
+  if (timer) clearTimeout(timer);
+  disconnectTimers.delete(key);
+}
+
+function roomFor(socket) {
+  const room = rooms.get(socket.data.roomId);
+  if (!room || !socket.data.memberId) return null;
+  return room;
+}
+
+function isHost(room, socket) {
+  return room.hostId === socket.data.memberId;
+}
+
+function reject(socket, code, message) {
+  socket.emit("room:error", { code, message });
+}
+
+app.get("/health", (_req, res) => {
+  const telemetry = [...rooms.values()].reduce((total, room) => {
+    total.playbackCommands += room.telemetry.commands;
+    total.driftSamples += room.telemetry.driftSamples;
+    total.deliveryTimeouts += room.telemetry.deliveryTimeouts;
+    return total;
+  }, { playbackCommands: 0, driftSamples: 0, deliveryTimeouts: 0 });
+  res.json({ ok: true, rooms: rooms.size, capacity: MAX_MEMBERS, reconnectGraceMs: RECONNECT_GRACE_MS, telemetry });
+});
 
 io.on("connection", (socket) => {
-  socket.on("room:join", ({ roomId, name }) => {
-    if (typeof roomId !== "string" || !/^[a-z0-9-]{3,40}$/i.test(roomId)) return socket.emit("room:error", "That room code is invalid.");
-    const room = rooms.get(roomId) ?? makeRoom(roomId);
-    rooms.set(roomId, room);
-    socket.join(roomId);
+  const joinRoom = (room, name, memberId) => {
+    const roomId = room.id;
+    const existing = room.members.get(memberId);
+    if (!existing && room.members.size >= MAX_MEMBERS) return reject(socket, "room-full", "This room is at its 20-person capacity.");
+
+    if (existing?.socketId && existing.socketId !== socket.id) {
+      const prior = io.sockets.sockets.get(existing.socketId);
+      prior?.disconnect(true);
+    }
+    const member = existing || { id: memberId, joinedAt: now() };
+    member.name = cleanText(name, "Guest", 32);
+    member.online = true;
+    member.socketId = socket.id;
+    room.members.set(memberId, member);
+    clearDisconnectTimer(roomId, memberId);
+    if (!room.hostId || !room.members.get(room.hostId)?.online) electHost(room);
+
     socket.data.roomId = roomId;
-    const member = { id: socket.id, name: String(name || "Guest").slice(0, 28), joinedAt: now() };
-    room.members.set(socket.id, member);
-    if (!room.hostId) electHost(room);
-    socket.emit("room:joined", { selfId: socket.id, state: roomSnapshot(room), messages: room.messages });
+    socket.data.memberId = memberId;
+    socket.join(roomId);
+    socket.emit("room:joined", { selfId: memberId, state: roomSnapshot(room), messages: room.messages });
     publishPresence(room);
+    publishState(room);
+  };
+
+  socket.on("room:create", ({ roomId, name, memberId, title, source, control } = {}) => {
+    if (!validRoomId(roomId) || !validMemberId(memberId)) return reject(socket, "invalid-create", "That room setup is invalid.");
+    const existingRoom = rooms.get(roomId);
+    if (existingRoom) {
+      if (existingRoom.hostId === memberId) return joinRoom(existingRoom, name, memberId);
+      return reject(socket, "room-exists", "That room already exists. Choose a new room code.");
+    }
+    if (!validMediaUrl(source)) return reject(socket, "invalid-source", "Use a direct .mp4 or .webm video URL.");
+    const room = makeRoom(roomId);
+    room.config = {
+      title: cleanText(title, "Untitled watch party", 80),
+      source: cleanText(source, "", 1000),
+      control: control === "shared" ? "shared" : "host",
+    };
+    rooms.set(roomId, room);
+    joinRoom(room, name, memberId);
   });
 
-  socket.on("room:configure", ({ title, source, control }) => {
-    const room = getRoomFor(socket);
-    if (!room || room.hostId !== socket.id) return;
-    const safeTitle = typeof title === "string" ? title.trim().slice(0, 56) : "";
-    const safeSource = typeof source === "string" && /^https?:\/\//i.test(source) ? source.slice(0, 2048) : "";
-    room.config = { title: safeTitle || room.config.title, source: safeSource, control: control === "shared" ? "shared" : "host" };
-    room.version += 1;
-    io.to(room.id).emit("room:config", room.config);
-    io.to(room.id).emit("playback:state", roomSnapshot(room));
+  socket.on("room:join", ({ roomId, name, memberId } = {}) => {
+    if (!validRoomId(roomId) || !validMemberId(memberId)) return reject(socket, "invalid-join", "That room link is invalid.");
+    const room = rooms.get(roomId);
+    if (!room) return reject(socket, "room-not-found", "That room does not exist or has expired.");
+    joinRoom(room, name, memberId);
   });
 
-  socket.on("playback:update", ({ playing, position, version }) => {
-    const room = getRoomFor(socket);
-    const canControl = room?.config.control === "shared" || room?.hostId === socket.id;
-    if (!room || !canControl || typeof position !== "number" || (version !== undefined && version < room.version)) return;
-    room.playing = Boolean(playing);
-    room.position = Math.max(0, Math.min(position, 744));
+  socket.on("room:configure", ({ title, source, control } = {}) => {
+    const room = roomFor(socket);
+    if (!room || !isHost(room, socket)) return reject(socket, "host-only", "Only the host can change room settings.");
+    if (!validMediaUrl(source)) return reject(socket, "invalid-source", "Use a direct .mp4 or .webm video URL.");
+    room.config = {
+      title: cleanText(title, room.config.title, 80),
+      source: cleanText(source, "", 1000),
+      control: control === "shared" ? "shared" : "host",
+    };
+    room.position = 0;
+    room.playing = false;
     room.updatedAt = now();
     room.version += 1;
-    io.to(room.id).emit("playback:state", roomSnapshot(room));
+    io.to(room.id).emit("room:config", room.config);
+    publishState(room);
   });
 
-  socket.on("chat:send", ({ text }) => {
-    const room = getRoomFor(socket);
-    const member = room?.members.get(socket.id);
-    const clean = typeof text === "string" ? text.trim().slice(0, 400) : "";
-    if (!room || !member || !clean) return;
-    const message = { id: `${socket.id}-${now()}`, name: member.name, text: clean, time: now(), senderId: socket.id };
-    room.messages = [...room.messages.slice(-99), message];
-    io.to(room.id).emit("chat:message", message);
+  socket.on("playback:update", ({ playing, position, version, sentAt } = {}) => {
+    const room = roomFor(socket);
+    if (!room) return;
+    if (room.config.control !== "shared" && !isHost(room, socket)) return reject(socket, "host-controls", "The host has the remote.");
+    if (!Number.isFinite(position) || position < 0 || position > 86_400) return reject(socket, "invalid-position", "That playback position is invalid.");
+    if (Number.isFinite(version) && version < room.version) {
+      socket.emit("room:state", roomSnapshot(room));
+      return;
+    }
+    room.playing = Boolean(playing);
+    room.position = position;
+    room.updatedAt = now();
+    room.telemetry.commands += 1;
+    room.version = Math.max(room.version + 1, Number.isFinite(version) ? version + 1 : room.version + 1);
+    publishPlayback(room, { ...roomSnapshot(room), commandSentAt: Number.isFinite(sentAt) ? sentAt : null });
   });
 
-  socket.on("reaction:send", ({ emoji }) => {
-    const room = getRoomFor(socket);
-    if (!room || typeof emoji !== "string" || emoji.length > 4) return;
-    io.to(room.id).emit("reaction:burst", { emoji, senderId: socket.id });
+  socket.on("sync:drift", ({ drift } = {}) => {
+    const room = roomFor(socket);
+    if (!room || !Number.isFinite(drift) || Math.abs(drift) > 86_400) return;
+    const absoluteDrift = Math.abs(drift);
+    room.telemetry.driftSamples += 1;
+    room.telemetry.driftTotal += absoluteDrift;
+    room.telemetry.maxDrift = Math.max(room.telemetry.maxDrift, absoluteDrift);
+    socket.emit("room:telemetry", roomSnapshot(room).telemetry);
   });
 
-  socket.on("poll:vote", ({ option }) => {
-    const room = getRoomFor(socket);
-    if (!room || !Number.isInteger(option) || !room.poll.options[option]) return;
-    const previous = room.poll.voters[socket.id];
-    if (previous !== undefined) room.poll.votes[previous] = Math.max(0, (room.poll.votes[previous] || 1) - 1);
-    room.poll.voters[socket.id] = option;
-    room.poll.votes[option] = (room.poll.votes[option] || 0) + 1;
-    io.to(room.id).emit("poll:state", room.poll);
+  socket.on("playlist:add", (item = {}) => {
+    const room = roomFor(socket);
+    if (!room) return;
+    const source = cleanText(item.source, "", 1000);
+    if (!validMediaUrl(source)) return reject(socket, "invalid-source", "This pick needs a direct .mp4 or .webm URL.");
+    if (room.playlist.length >= 50) return reject(socket, "queue-full", "The shared queue is full.");
+    const entry = {
+      id: `${now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      title: cleanText(item.title, "Untitled selection", 80),
+      source,
+      category: cleanText(item.category, "Other", 28),
+      duration: cleanText(item.duration, "", 20),
+      addedBy: socket.data.memberId,
+    };
+    room.playlist.push(entry);
+    io.to(room.id).emit("playlist:state", room.playlist);
+  });
+
+  socket.on("playlist:remove", ({ id } = {}) => {
+    const room = roomFor(socket);
+    if (!room || !isHost(room, socket)) return reject(socket, "host-only", "Only the host can edit the queue.");
+    room.playlist = room.playlist.filter((item) => item.id !== id);
+    io.to(room.id).emit("playlist:state", room.playlist);
+  });
+
+  socket.on("playlist:play", ({ id } = {}) => {
+    const room = roomFor(socket);
+    if (!room || !isHost(room, socket)) return reject(socket, "host-only", "Only the host can start a queue item.");
+    const item = room.playlist.find((entry) => entry.id === id);
+    if (!item) return reject(socket, "missing-item", "That queue item is no longer available.");
+    room.config = { ...room.config, title: item.title, source: item.source };
+    room.position = 0;
+    room.playing = false;
+    room.updatedAt = now();
+    room.version += 1;
+    io.to(room.id).emit("room:config", room.config);
+    publishState(room);
+  });
+
+  socket.on("host:transfer", ({ memberId } = {}) => {
+    const room = roomFor(socket);
+    const target = room?.members.get(memberId);
+    if (!room || !isHost(room, socket) || !target?.online) return reject(socket, "transfer-failed", "Choose an online participant to host.");
+    room.hostId = target.id;
+    room.version += 1;
+    publishPresence(room);
+    publishState(room);
+  });
+
+  socket.on("chat:send", ({ text } = {}) => {
+    const room = roomFor(socket);
+    const member = room?.members.get(socket.data.memberId);
+    const message = cleanText(text, "", 480);
+    if (!room || !member || !message) return;
+    const payload = { id: `${now()}-${socket.id}`, name: member.name, text: message, createdAt: now() };
+    room.messages.push(payload);
+    room.messages = room.messages.slice(-120);
+    io.to(room.id).emit("chat:message", payload);
+  });
+
+  socket.on("reaction:send", ({ emoji } = {}) => {
+    const room = roomFor(socket);
+    if (!room || !moodByEmoji[emoji]) return;
+    room.moods[socket.data.memberId] = moodByEmoji[emoji];
+    io.to(room.id).emit("reaction", { emoji, memberId: socket.data.memberId, createdAt: now() });
+    io.to(room.id).emit("mood:update", roomSnapshot(room).mood);
+  });
+
+  socket.on("poll:vote", ({ option } = {}) => {
+    const room = roomFor(socket);
+    if (!room || !room.poll.options.includes(option)) return;
+    room.poll.votes[socket.data.memberId] = option;
+    io.to(room.id).emit("poll:update", room.poll);
+  });
+
+  socket.on("latency:ping", ({ clientSentAt } = {}, acknowledge) => {
+    const payload = { clientSentAt, serverReceivedAt: now(), serverSentAt: now() };
+    if (typeof acknowledge === "function") acknowledge(payload);
+    else socket.emit("latency:pong", payload);
   });
 
   socket.on("disconnect", () => {
-    const room = getRoomFor(socket);
+    const room = roomFor(socket);
     if (!room) return;
-    room.members.delete(socket.id);
-    if (room.hostId === socket.id) electHost(room);
-    if (room.members.size === 0) return rooms.delete(room.id);
+    const member = room.members.get(socket.data.memberId);
+    if (!member || member.socketId !== socket.id) return;
+    member.online = false;
+    member.socketId = null;
     publishPresence(room);
-    io.to(room.id).emit("playback:state", roomSnapshot(room));
+    const key = timerKey(room.id, member.id);
+    clearDisconnectTimer(room.id, member.id);
+    disconnectTimers.set(key, setTimeout(() => {
+      const liveRoom = rooms.get(room.id);
+      const liveMember = liveRoom?.members.get(member.id);
+      if (!liveRoom || !liveMember || liveMember.online) return;
+      liveRoom.members.delete(member.id);
+      delete liveRoom.moods[member.id];
+      if (liveRoom.hostId === member.id) electHost(liveRoom);
+      if (liveRoom.members.size === 0) {
+        rooms.delete(liveRoom.id);
+      } else {
+        publishPresence(liveRoom);
+        publishState(liveRoom);
+      }
+      disconnectTimers.delete(key);
+    }, RECONNECT_GRACE_MS));
   });
 });
 
-app.get("/health", (_request, response) => response.json({ ok: true, rooms: rooms.size }));
-httpServer.listen(process.env.PORT || 3001, () => console.log("Afterglow realtime server listening on :3001"));
+httpServer.listen(PORT, () => console.log(`Watch party server listening on http://localhost:${PORT}`));
