@@ -12,6 +12,7 @@ import { canPublishScreen, liveKitService } from "./server/livekit.js";
 import { getInviteOrigin } from "./server/inviteOrigin.js";
 
 const app = express();
+app.set("trust proxy", true);
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: true, methods: ["GET", "POST"] } });
 const PORT = process.env.PORT || 3001;
