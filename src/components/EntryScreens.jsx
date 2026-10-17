@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { catalog, demoSource, tints, validMediaUrl } from "../data/catalog.js";
+import { catalog, demoSource, mediaProvider, tints, validMediaUrl } from "../data/catalog.js";
 import { fuzzyMatch, roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
 import { Avatar, Icon, SoftField, Wordmark } from "./Primitives.jsx";
@@ -104,18 +104,21 @@ export function CreateRoom({ onClose, onEnter }) {
   const [control, setControl] = useState("host");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
+  const validSource = validMediaUrl(source);
+  const isYouTube = mediaProvider(source) === "youtube";
 
   return (
     <div className="modal-backdrop">
       <form className="setup-modal setup-modal-wide" onSubmit={event => { event.preventDefault(); onEnter({ id: roomId(), title, source, control, create: true }); }}>
         <button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button>
-        <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Every viewer loads the same direct video URL locally. Afterglow distributes timing and room activity, never the video file.</p></div>
+        <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>
         <label className="field-label">ROOM NAME<input value={title} onChange={event => setTitle(event.target.value)} maxLength="56"/></label>
-        <label className="field-label">DIRECT VIDEO URL<input value={source} onChange={event => setSource(event.target.value)} placeholder="https://…/video.mp4" aria-invalid={!validMediaUrl(source)}/></label>
-        {!validMediaUrl(source) && <p className="source-error">Enter a direct HTTP(S) URL ending in .mp4 or .webm.</p>}
+        <label className="field-label">{isYouTube ? "YOUTUBE VIDEO URL" : "VIDEO URL"}<input value={source} onChange={event => setSource(event.target.value)} placeholder="https://…/video.mp4 or YouTube link" aria-invalid={!validSource}/></label>
+        {!validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm URL or a YouTube watch, youtu.be, shorts, or embed link.</p>}
+        {isYouTube && <p className="source-note">YouTube’s official embed player will be used. Some videos cannot be embedded by their owner.</p>}
         <Discovery query={query} setQuery={setQuery} category={category} setCategory={setCategory} action="Use this" onSelect={item => { setTitle(item.title); setSource(item.source); }}/>
         <fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control === "host" ? "chosen" : ""} onClick={() => setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control === "shared" ? "chosen" : ""} onClick={() => setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset>
-        <button className="primary-action" disabled={!validMediaUrl(source) || !title.trim()}>Create the room <Icon name="arrow"/></button>
+        <button className="primary-action" disabled={!validSource || !title.trim()}>Create the room <Icon name="arrow"/></button>
       </form>
     </div>
   );

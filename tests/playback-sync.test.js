@@ -46,6 +46,12 @@ test("playback correction classifies the three drift zones and boundaries", () =
   assert.equal(correctionZone(Number.NaN), "steady");
 });
 
+test("players without playback-rate support stay steady inside tolerance and seek beyond it", () => {
+  const youtubeCorrection = { supportsPlaybackRate: false, seekThreshold: 0.5 };
+  assert.equal(correctionZone(0.5, youtubeCorrection), "steady");
+  assert.equal(correctionZone(-0.5001, youtubeCorrection), "seek");
+});
+
 test("desired playback position uses the estimated server clock offset", () => {
   assert.equal(desiredPosition({ playing: true, position: 5, updatedAt: 1000 }, 1100, 200), 5.3);
 });

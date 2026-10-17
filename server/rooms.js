@@ -64,7 +64,7 @@ export function roomSnapshot(room) {
 export function memberList(room) {
   return [...room.members.values()]
     .sort((a, b) => a.joinedAt - b.joinedAt)
-    .map(({ id, name, joinedAt, online }) => ({ id, name, joinedAt, online, host: id === room.hostId }));
+    .map(({ id, name, joinedAt, online, buffering }) => ({ id, name, joinedAt, online, buffering: Boolean(buffering), host: id === room.hostId }));
 }
 
 export const onlineMembers = room => [...room.members.values()].filter(member => member.online);

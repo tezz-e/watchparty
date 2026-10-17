@@ -40,6 +40,7 @@ export function registerSocketHandlers(io) {
       const member = existing || { id: memberId, joinedAt: now() };
       member.name = cleanText(name, "Guest", 32);
       member.online = true;
+      member.buffering = false;
       member.socketId = socket.id;
       room.members.set(memberId, member);
       clearDisconnectTimer(roomId, memberId);
@@ -60,7 +61,7 @@ export function registerSocketHandlers(io) {
         if (existingRoom.hostId === memberId) return joinRoom(existingRoom, name, memberId);
         return reject(socket, "room-exists", "That room already exists. Choose a new room code.");
       }
-      if (!validMediaUrl(source)) return reject(socket, "invalid-source", "Use a direct .mp4 or .webm video URL.");
+      if (!validMediaUrl(source)) return reject(socket, "invalid-source", "Use a direct .mp4 or .webm video URL, or a valid YouTube video link.");
       const room = makeRoom(roomId);
       room.config = {
         title: cleanText(title, "Untitled watch party", 80),
@@ -81,7 +82,7 @@ export function registerSocketHandlers(io) {
     socket.on("room:configure", ({ title, source, control } = {}) => {
       const room = roomFor(socket);
       if (!room || !isHost(room, socket)) return reject(socket, "host-only", "Only the host can change room settings.");
-      if (!validMediaUrl(source)) return reject(socket, "invalid-source", "Use a direct .mp4 or .webm video URL.");
+      if (!validMediaUrl(source)) return reject(socket, "invalid-source", "Use a direct .mp4 or .webm video URL, or a valid YouTube video link.");
       room.config = {
         title: cleanText(title, room.config.title, 80),
         source: cleanText(source, "", 1000),
@@ -122,11 +123,32 @@ export function registerSocketHandlers(io) {
       socket.emit("room:telemetry", roomSnapshot(room).telemetry);
     });
 
+    socket.on("media:buffering", ({ buffering } = {}) => {
+      const room = roomFor(socket);
+      const member = room?.members.get(socket.data.memberId);
+      if (!room || !member || typeof buffering !== "boolean") return;
+      if (member.buffering === buffering) return;
+      member.buffering = buffering;
+      publishPresence(room);
+    });
+
+    socket.on("media:failure", ({ code } = {}) => {
+      const room = roomFor(socket);
+      const member = room?.members.get(socket.data.memberId);
+      const validCodes = new Set([2, 5, 100, 101, 150, 153, "api-unavailable", "media-load"]);
+      if (!room || !member || !validCodes.has(code)) return;
+      io.to(room.id).emit("media:failure", {
+        memberId: member.id,
+        name: member.name,
+        code,
+      });
+    });
+
     socket.on("playlist:add", (item = {}) => {
       const room = roomFor(socket);
       if (!room) return;
       const source = cleanText(item.source, "", 1000);
-      if (!validMediaUrl(source)) return reject(socket, "invalid-source", "This pick needs a direct .mp4 or .webm URL.");
+      if (!validMediaUrl(source)) return reject(socket, "invalid-source", "This pick needs a direct .mp4 or .webm URL, or a valid YouTube video link.");
       if (room.playlist.length >= 50) return reject(socket, "queue-full", "The shared queue is full.");
       const entry = {
         id: `${now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,

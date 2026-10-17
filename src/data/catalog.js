@@ -10,11 +10,4 @@ export const catalog = [
   { id: "bunny", title: "Big Buck Bunny", category: "Animation", duration: "9:56", source: "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", note: "Blender open movie", tone: "amber", moods: ["playful", "uplifting"] },
 ];
 
-export function validMediaUrl(value) {
-  try {
-    const url = new URL(value);
-    return ["https:", "http:"].includes(url.protocol) && /\.(mp4|webm)$/i.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
+export { mediaProvider, validMediaUrl, youtubeVideoId } from "../../shared/media.js";

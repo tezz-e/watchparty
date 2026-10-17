@@ -150,6 +150,38 @@ test("room creation is explicit, joins require an existing room, and media URLs 
   assert.equal((await duplicateError)[0].code, "room-exists");
 });
 
+test("YouTube links can create rooms, enter the shared playlist, and report failures and buffering", async () => {
+  const host = await connect("youtube-host-0001");
+  const youtubeUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  const { roomId, state } = await createRoom(host, { source: youtubeUrl });
+  assert.equal(state.config.source, youtubeUrl);
+
+  const viewer = await connect("youtube-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  const queueUpdate = eventOnce(host.socket, "playlist:state");
+  viewer.socket.emit("playlist:add", { title: "YouTube pick", source: youtubeUrl });
+  const [queue] = await queueUpdate;
+  assert.equal(queue[0].source, youtubeUrl);
+
+  const presence = eventOnce(host.socket, "room:presence", members => members.some(member => member.id === viewer.memberId && member.buffering));
+  viewer.socket.emit("media:buffering", { buffering: true });
+  const [members] = await presence;
+  assert.equal(members.find(member => member.id === viewer.memberId).buffering, true);
+
+  const failure = eventOnce(viewer.socket, "media:failure", payload => payload.memberId === viewer.memberId);
+  viewer.socket.emit("media:failure", { code: 150 });
+  assert.deepEqual((await failure)[0], { memberId: viewer.memberId, name: viewer.name, code: 150 });
+
+  let unexpectedFailure = false;
+  const onFailure = payload => { if (payload.code === 999) unexpectedFailure = true; };
+  viewer.socket.on("media:failure", onFailure);
+  viewer.socket.emit("media:failure", { code: 999 });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  viewer.socket.off("media:failure", onFailure);
+  assert.equal(unexpectedFailure, false);
+});
+
 test("ten clients receive authoritative playback commands and server records delivery and drift", async () => {
   const host = await connect("group-host-0001");
   const { roomId } = await createRoom(host);

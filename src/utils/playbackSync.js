@@ -34,11 +34,12 @@ export function createClockOffsetEstimator({ maxSamples = 20, lowestRttCount = 5
   };
 }
 
-export function correctionZone(drift) {
+export function correctionZone(drift, { supportsPlaybackRate = true, seekThreshold = 0.5 } = {}) {
   if (!Number.isFinite(drift)) return "steady";
 
   const absoluteDrift = Math.abs(drift);
   if (absoluteDrift <= 0.08) return "steady";
+  if (!supportsPlaybackRate) return absoluteDrift <= seekThreshold ? "steady" : "seek";
   if (absoluteDrift <= 0.5) return "rate";
   return "seek";
 }

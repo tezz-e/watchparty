@@ -3,22 +3,28 @@ import { io } from "socket.io-client";
 import { createMemberId, desiredPosition } from "../utils/watchParty.js";
 import { correctionZone, createClockOffsetEstimator } from "../utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../player/htmlVideoPlayer.js";
+import { createYoutubePlayer, youtubeErrorMessage } from "../player/youtubePlayer.js";
+import { mediaProvider, youtubeVideoId } from "../data/catalog.js";
 import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
   const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState("");
-  const socket = useRef(null), video = useRef(null), player = useRef(null), clockOffsetRef = useRef(clockOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
+  const socket = useRef(null), video = useRef(null), youtube = useRef(null), player = useRef(null), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
   stateRef.current = state;
   clockOffsetRef.current = clockOffset;
   const hasRemote = state.config?.control === "shared" || state.hostId === selfId;
   const config = state.config || room;
   const applyState = next => setState(previous => ({ ...previous, ...next, config: next.config ? { ...previous.config, ...next.config } : previous.config, playlist: next.playlist || previous.playlist, poll: next.poll || previous.poll }));
-  const getPlayer = () => {
-    if (!player.current && video.current) player.current = createHtmlVideoPlayer(video.current);
-    return player.current;
-  };
+  const getPlayer = () => player.current;
   const getDesiredPosition = playbackState => desiredPosition(playbackState || state, Date.now(), clockOffsetRef.current);
+  const provider = mediaProvider(config.source);
+  const reportBuffering = buffering => {
+    if (bufferingRef.current === buffering) return;
+    bufferingRef.current = buffering;
+    socket.current?.emit("media:buffering", { buffering });
+  };
+  const reportMediaFailure = code => socket.current?.emit("media:failure", { code });
 
   useEffect(() => {
     const client = io(serverUrl, { transports: ["websocket", "polling"], reconnection: true });
@@ -40,6 +46,7 @@ export function useRoomSession(profile, room) {
     client.on("mood:update", mood => setState(previous => ({ ...previous, mood })));
     client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
     client.on("room:error", error => setNotice(error.message));
+    client.on("media:failure", ({ name, code }) => setNotice(`${name} could not play this video: ${youtubeErrorMessage(code)} (${code}).`));
     return () => client.close();
   }, [profile.name, room.id]);
 
@@ -60,43 +67,98 @@ export function useRoomSession(profile, room) {
     return () => clearInterval(interval);
   }, []);
   useEffect(() => {
+    player.current = null;
+    bufferingRef.current = false;
+    if (provider === "youtube" && youtube.current) {
+      const mediaPlayer = createYoutubePlayer(youtube.current, youtubeVideoId(config.source), {
+        onReady: () => {
+          mediaPlayer.seek(getDesiredPosition(stateRef.current));
+          if (stateRef.current.playing) mediaPlayer.play();
+          else mediaPlayer.pause();
+        },
+        onStateChange: event => {
+          const buffering = event.data === 3;
+          reportBuffering(buffering);
+          if (event.data === 0) sendPlayback(false, mediaPlayer.currentTime());
+        },
+        onError: code => {
+          reportBuffering(false);
+          reportMediaFailure(code);
+          setNotice(youtubeErrorMessage(code));
+        },
+        onAutoplayBlocked: () => setNotice("Tap play once to allow this browser to start the YouTube video."),
+      });
+      player.current = mediaPlayer;
+      return () => {
+        reportBuffering(false);
+        mediaPlayer.destroy();
+        if (player.current === mediaPlayer) player.current = null;
+      };
+    }
+    if (provider === "url" && video.current) {
+      const mediaPlayer = createHtmlVideoPlayer(video.current);
+      player.current = mediaPlayer;
+      return () => {
+        if (player.current === mediaPlayer) player.current = null;
+      };
+    }
+  }, [config.source, provider]);
+
+  useEffect(() => {
     const mediaPlayer = getPlayer(); if (!mediaPlayer) return;
-    if (state.playing) mediaPlayer.play().catch(() => setNotice("Tap play once to allow this browser to start media."));
-    else mediaPlayer.pause();
-  }, [state.playing, config.source]);
+    if (state.playing) {
+      const result = mediaPlayer.play();
+      result?.catch?.(() => setNotice("Tap play once to allow this browser to start media."));
+    } else mediaPlayer.pause();
+  }, [state.playing, config.source, provider]);
   useEffect(() => {
     const correctPlayback = () => {
       const mediaPlayer = getPlayer(); if (!mediaPlayer) return;
       const drift = getDesiredPosition() - mediaPlayer.currentTime();
       if (!Number.isFinite(drift)) return;
-      const zone = correctionZone(drift);
+      const zone = correctionZone(drift, { supportsPlaybackRate: provider !== "youtube" });
       if (zone === "seek") {
         mediaPlayer.seek(getDesiredPosition());
-        mediaPlayer.setPlaybackRate(1);
+        if (provider !== "youtube") mediaPlayer.setPlaybackRate?.(1);
       } else if (zone === "rate") {
-        mediaPlayer.setPlaybackRate(Math.max(0.95, Math.min(1.05, 1 + drift * 0.1)));
-      } else {
-        mediaPlayer.setPlaybackRate(1);
+        mediaPlayer.setPlaybackRate?.(Math.max(0.95, Math.min(1.05, 1 + drift * 0.1)));
+      } else if (provider !== "youtube") {
+        mediaPlayer.setPlaybackRate?.(1);
       }
     };
     correctPlayback();
     const interval = setInterval(correctPlayback, 250);
     return () => clearInterval(interval);
-  }, [state.playing, state.position, state.updatedAt, config.source, clockOffset]);
+  }, [state.playing, state.position, state.updatedAt, config.source, provider, clockOffset]);
 
   const send = (event, payload) => socket.current?.emit(event, payload);
   const sendPlayback = (playing, position) => { if (!hasRemote) return setNotice("The host has the remote."); socket.current?.emit("playback:update", { playing, position, version: stateRef.current.version, sentAt: Date.now() }); };
+  const togglePlayback = () => {
+    const playing = !stateRef.current.playing;
+    if (playing) {
+      const result = getPlayer()?.play();
+      result?.catch?.(() => setNotice("Tap play once to allow this browser to start media."));
+    }
+    sendPlayback(playing, getPlayer()?.currentTime() || getDesiredPosition(stateRef.current));
+  };
   const onTime = () => {
     const timestamp = Date.now();
+    const mediaPlayer = getPlayer();
+    if (!mediaPlayer) return;
     if (timestamp - lastDriftSample.current >= 2000) {
       lastDriftSample.current = timestamp;
-      socket.current?.emit("sync:drift", { drift: getDesiredPosition(stateRef.current) - getPlayer().currentTime() });
+      socket.current?.emit("sync:drift", { drift: getDesiredPosition(stateRef.current) - mediaPlayer.currentTime() });
     }
     if (!hasRemote || !stateRef.current.playing || timestamp - lastHeartbeat.current < 2000) return;
     lastHeartbeat.current = timestamp;
-    sendPlayback(true, getPlayer().currentTime());
+    sendPlayback(true, mediaPlayer.currentTime());
   };
+  useEffect(() => {
+    if (provider !== "youtube") return;
+    const interval = setInterval(onTime, 1000);
+    return () => clearInterval(interval);
+  }, [provider, config.source, hasRemote]);
   const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback, onTime, share };
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share };
 }
