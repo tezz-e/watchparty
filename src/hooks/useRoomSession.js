@@ -1,0 +1,62 @@
+import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
+import { createMemberId, desiredPosition } from "../utils/watchParty.js";
+
+export function useRoomSession(profile, room) {
+  const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
+  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [notice, setNotice] = useState("");
+  const socket = useRef(null), video = useRef(null), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
+  stateRef.current = state;
+  const hasRemote = state.config?.control === "shared" || state.hostId === selfId;
+  const config = state.config || room;
+  const applyState = next => setState(previous => ({ ...previous, ...next, config: next.config ? { ...previous.config, ...next.config } : previous.config, playlist: next.playlist || previous.playlist, poll: next.poll || previous.poll }));
+
+  useEffect(() => {
+    const client = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:3001", { transports: ["websocket", "polling"], reconnection: true });
+    socket.current = client;
+    const join = () => {
+      setConnected(true);
+      const identity = { roomId: room.id, name: profile.name, memberId: memberId.current };
+      if (createOnNextConnect.current) {
+        client.emit("room:create", { ...identity, title: room.title, source: room.source, control: room.control });
+      } else client.emit("room:join", identity);
+    };
+    client.on("connect", join); client.on("disconnect", () => setConnected(false));
+    client.on("room:joined", ({ selfId: id, state: serverState, messages: history }) => { createOnNextConnect.current = false; setSelfId(id); setMessages(history); applyState(serverState); });
+    client.on("room:state", applyState);
+    client.on("playback:state", (next, acknowledge) => { applyState(next); if (typeof acknowledge === "function") acknowledge(); });
+    client.on("room:config", configUpdate => setState(previous => ({ ...previous, config: { ...previous.config, ...configUpdate } })));
+    client.on("room:presence", setMembers); client.on("playlist:state", playlist => setState(previous => ({ ...previous, playlist })));
+    client.on("chat:message", message => setMessages(previous => [...previous, message])); client.on("reaction", ({ emoji }) => setReaction(emoji)); client.on("poll:update", poll => setState(previous => ({ ...previous, poll })));
+    client.on("mood:update", mood => setState(previous => ({ ...previous, mood })));
+    client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
+    client.on("room:error", error => setNotice(error.message));
+    return () => client.close();
+  }, [profile.name, room.id]);
+
+  useEffect(() => { if (!notice) return; const timeout = setTimeout(() => setNotice(""), 3600); return () => clearTimeout(timeout); }, [notice]);
+  useEffect(() => { if (!reaction) return; const timeout = setTimeout(() => setReaction(null), 900); return () => clearTimeout(timeout); }, [reaction]);
+  useEffect(() => { const probe = () => socket.current?.emit("latency:ping", { clientSentAt: Date.now() }, reply => { if (reply?.clientSentAt) setLatency(Date.now() - reply.clientSentAt); }); probe(); const interval = setInterval(probe, 5000); return () => clearInterval(interval); }, []);
+  useEffect(() => {
+    const player = video.current; if (!player) return;
+    const target = desiredPosition(state); const drift = target - player.currentTime;
+    if (Math.abs(drift) > .5) player.currentTime = target;
+    if (state.playing) player.play().catch(() => setNotice("Tap play once to allow this browser to start media.")); else player.pause();
+  }, [state.playing, state.position, state.updatedAt, config.source]);
+
+  const send = (event, payload) => socket.current?.emit(event, payload);
+  const sendPlayback = (playing, position) => { if (!hasRemote) return setNotice("The host has the remote."); socket.current?.emit("playback:update", { playing, position, version: stateRef.current.version, sentAt: Date.now() }); };
+  const onTime = event => {
+    const timestamp = Date.now();
+    if (timestamp - lastDriftSample.current >= 2000) {
+      lastDriftSample.current = timestamp;
+      socket.current?.emit("sync:drift", { drift: desiredPosition(stateRef.current) - event.currentTarget.currentTime });
+    }
+    if (!hasRemote || !stateRef.current.playing || timestamp - lastHeartbeat.current < 2000) return;
+    lastHeartbeat.current = timestamp;
+    sendPlayback(true, event.currentTarget.currentTime);
+  };
+  const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
+
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, hasRemote, config, send, sendPlayback, onTime, share };
+}
