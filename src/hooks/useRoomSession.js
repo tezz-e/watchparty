@@ -273,5 +273,5 @@ export function useRoomSession(profile, room) {
     }
   };
 
-  return { socket: socketInstance, state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
+  return { socket: socketInstance, state, connected, selfId, members, messages, reaction, copied, latency, notice, setNotice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
 }

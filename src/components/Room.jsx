@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField, ThemeSelect } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
 import { instagramReelId, tints } from "../data/catalog.js";
@@ -11,8 +11,6 @@ import { useWebRTCScreenShare } from "../hooks/useWebRTCScreenShare.js";
 import "./YoutubePlayer.css";
 import "./RoomFeatures.css";
 
-const LiveKitScreen = lazy(() => import("./LiveKitScreen.jsx"));
-
 export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [draft, setDraft] = useState("");
   const [drawer, setDrawer] = useState("chat");
@@ -23,7 +21,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [, setCountdownTick] = useState(0);
   const {
     socket,
-    state, connected, selfId, members, messages, reaction, copied, latency, notice,
+    state, connected, selfId, members, messages, reaction, copied, latency, notice, setNotice,
     video, youtube, provider, platform, reportBuffering, reportMediaFailure,
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
     togglePlayback, onTime, endPlayback, share, externalReady, setExternalReady,
@@ -43,7 +41,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
     members,
     screenShareState: state.screenShare,
     canPublish: hasRemote,
-    onNotice: () => {},
+    onNotice: setNotice,
   });
 
   const screenVideoRef = useRef(null);
@@ -61,7 +59,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const duration = isSyncOnly ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
   const position = getDesiredPosition();
   const posterUrl = getMediaPoster(config.source, config.title);
-  const isStartingPlayback = !state.playing && position < 1 && !screenStream && provider !== "external";
+  const isStartingPlayback = !state.playing && position < 1 && !screenStream && !activeScreenShare && provider !== "external";
   const telemetry = state.telemetry || {};
   const onlineMembers = members.filter(member => member.online);
   const readyMembers = onlineMembers.filter(member => member.externalReady);
@@ -204,17 +202,34 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 preload="metadata"
               />
             )}
-            {screenStream && (
+            {(screenStream || activeScreenShare) && (
               <div className="screenshare-stage">
-                <video
-                  ref={screenVideoRef}
-                  className="livekit-video screenshare-video"
-                  autoPlay
-                  playsInline
-                  muted={isSharingScreen}
-                />
+                {screenStream ? (
+                  <video
+                    ref={node => {
+                      screenVideoRef.current = node;
+                      if (node && screenStream && node.srcObject !== screenStream) {
+                        node.srcObject = screenStream;
+                        node.play().catch(() => {
+                          node.muted = true;
+                          node.play().catch(() => {});
+                        });
+                      }
+                    }}
+                    className="livekit-video screenshare-video"
+                    autoPlay
+                    playsInline
+                    muted={isSharingScreen}
+                  />
+                ) : (
+                  <div className="screenshare-connecting">
+                    <span className="signal-led" />
+                    <b>Connecting live screen share…</b>
+                    <small>Receiving feed from {members.find(m => m.id === activeScreenShare?.sharerMemberId)?.name || "Host"}</small>
+                  </div>
+                )}
                 <div className="screenshare-bar">
-                  <span className="live-badge">🔴 SCREEN SHARE</span>
+                  <span className="live-badge">SCREEN SHARE · LIVE</span>
                   <span className="screenshare-title">{activeScreenShare?.title || "Live Screen Share"}</span>
                   {isSharingScreen ? (
                     <button type="button" className="screenshare-stop-btn" onClick={stopScreenShare}>
@@ -316,6 +331,17 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             )}
             {provider === "instagram" && (
               <div className="instagram-reel-stage" onWheel={handleReelWheel}>
+                <div className="reel-quick-nav top">
+                  <button
+                    type="button"
+                    className="reel-quick-btn"
+                    disabled={!hasRemote || !canPrevReel}
+                    onClick={() => navigateReel(-1)}
+                    title={hasRemote ? "Previous Reel (↑)" : "Host controls scrolling"}
+                  >
+                    <span>▲ Previous Reel</span>
+                  </button>
+                </div>
                 <div className="instagram-reel-card">
                   <iframe
                     key={reelId}
@@ -326,6 +352,17 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                     allowFullScreen
                     allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                   />
+                </div>
+                <div className="reel-quick-nav bottom">
+                  <button
+                    type="button"
+                    className="reel-quick-btn"
+                    disabled={!hasRemote || !canNextReel}
+                    onClick={() => navigateReel(1)}
+                    title={hasRemote ? "Next Reel (↓)" : "Host controls scrolling"}
+                  >
+                    <span>▼ Next Reel</span>
+                  </button>
                 </div>
                 <div className="reel-scroll-sidebar">
                   <button
@@ -365,17 +402,28 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                   )}
                 </div>
                 <div className="reel-scroll-hint">
-                  {hasRemote ? "Scroll wheel or ↑ / ↓ arrow keys to flip reels for everyone" : "Host is scrolling through reels"}
+                  {hasRemote ? "Use ↑ / ↓ arrow keys, Next/Prev buttons, or Screen Share to browse your personal feed" : "Host is scrolling through reels"}
                 </div>
                 <div className="instagram-meta-overlay">
                   <div className="instagram-badge">
                     <span className="live-pulse"/>
                     <span>INSTAGRAM REEL · FEED SYNC</span>
                   </div>
-                  <a href={config.source} target="_blank" rel="noreferrer" className="instagram-open-btn">
-                    <span>Open on Instagram</span>
-                    <Icon name="external" size={13}/>
-                  </a>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <button
+                      type="button"
+                      className="instagram-screenshare-btn"
+                      onClick={isSharingScreen ? stopScreenShare : startScreenShare}
+                      title="Stream your own Instagram tab with real-time personal scrolling"
+                    >
+                      <Icon name="device" size={13}/>
+                      <span>{isSharingScreen ? "Stop Screen Share" : "Share My Live Feed"}</span>
+                    </button>
+                    <a href={config.source} target="_blank" rel="noreferrer" className="instagram-open-btn">
+                      <span>Open on Instagram</span>
+                      <Icon name="external" size={13}/>
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
@@ -446,11 +494,6 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                   </button>
                 ))}
               </section>
-            )}
-            {provider !== "instagram" && (
-              <Suspense fallback={null}>
-                <LiveKitScreen roomId={room.id} connected={connected} canPublish={hasRemote} requestTicket={requestScreenTicket} hasSource={Boolean(room.source)}/>
-              </Suspense>
             )}
           </div>
           {isSyncOnly && (

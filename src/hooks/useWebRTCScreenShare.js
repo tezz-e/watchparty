@@ -3,6 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun3.l.google.com:19302" },
+  { urls: "stun:stun4.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
 export function useWebRTCScreenShare({
@@ -20,7 +24,7 @@ export function useWebRTCScreenShare({
   const pendingCandidates = useRef(new Map());
 
   const isSharer = Boolean(
-    screenShareState?.sharerMemberId && screenShareState.sharerMemberId === selfId
+    localStreamRef.current || (screenShareState?.sharerMemberId && screenShareState.sharerMemberId === selfId)
   );
 
   const cleanupPeers = useCallback(() => {
@@ -58,8 +62,20 @@ export function useWebRTCScreenShare({
     async (memberId, mediaStream) => {
       if (!socket?.connected) return;
       try {
+        const existing = peerConnections.current.get(memberId);
+        if (existing) {
+          try { existing.close(); } catch {}
+          peerConnections.current.delete(memberId);
+        }
+
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         peerConnections.current.set(memberId, pc);
+
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+            peerConnections.current.delete(memberId);
+          }
+        };
 
         mediaStream.getTracks().forEach(track => {
           pc.addTrack(track, mediaStream);
@@ -141,12 +157,26 @@ export function useWebRTCScreenShare({
 
       if (signal.type === "offer") {
         try {
+          const existing = peerConnections.current.get(fromMemberId);
+          if (existing) {
+            try { existing.close(); } catch {}
+            peerConnections.current.delete(fromMemberId);
+          }
+
           const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
           peerConnections.current.set(fromMemberId, pc);
+
+          pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+              peerConnections.current.delete(fromMemberId);
+            }
+          };
 
           pc.ontrack = event => {
             if (event.streams && event.streams[0]) {
               setStream(event.streams[0]);
+            } else if (event.track) {
+              setStream(new MediaStream([event.track]));
             }
           };
 
@@ -195,7 +225,7 @@ export function useWebRTCScreenShare({
         }
       } else if (signal.type === "candidate") {
         const pc = peerConnections.current.get(fromMemberId);
-        if (pc && pc.remoteDescription) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
           } catch (err) {
