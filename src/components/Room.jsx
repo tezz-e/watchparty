@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField, ThemeSelect } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
 import { instagramReelId, tints } from "../data/catalog.js";
+import { getReelsFeed } from "../data/reelsFeed.js";
 import { formatTime } from "../utils/watchParty.js";
 import { useRoomSession } from "../hooks/useRoomSession.js";
 import { ChangeMediaModal } from "./ChangeMediaModal.jsx";
@@ -68,6 +69,49 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
     ? Math.max(0, (state.externalCountdown.startsAt - getServerNow()) / 1000)
     : null;
   const reelId = provider === "instagram" ? instagramReelId(config.source) : null;
+  const reelsFeed = getReelsFeed(config.source, state.playlist || []);
+  const currentReelIndex = Math.max(0, reelsFeed.findIndex(item => item.id === reelId));
+  const canPrevReel = currentReelIndex > 0;
+  const canNextReel = currentReelIndex < reelsFeed.length - 1;
+
+  const navigateReel = useCallback((direction) => {
+    if (!hasRemote) return;
+    const targetIndex = currentReelIndex + direction;
+    if (targetIndex >= 0 && targetIndex < reelsFeed.length) {
+      const nextReel = reelsFeed[targetIndex];
+      send("room:change-source", { title: nextReel.title, source: nextReel.source });
+    }
+  }, [currentReelIndex, hasRemote, reelsFeed, send]);
+
+  const lastWheelTime = useRef(0);
+  const handleReelWheel = e => {
+    if (provider !== "instagram") return;
+    const timestamp = Date.now();
+    if (timestamp - lastWheelTime.current < 450) return;
+    if (e.deltaY > 25) {
+      lastWheelTime.current = timestamp;
+      navigateReel(1);
+    } else if (e.deltaY < -25) {
+      lastWheelTime.current = timestamp;
+      navigateReel(-1);
+    }
+  };
+
+  useEffect(() => {
+    if (provider !== "instagram") return;
+    const handleKeyDown = e => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "ArrowDown" || e.key === "PageDown") {
+        e.preventDefault();
+        navigateReel(1);
+      } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+        e.preventDefault();
+        navigateReel(-1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [provider, navigateReel]);
 
   useEffect(() => {
     if (!isSyncOnly || !state.externalCountdown) return undefined;
@@ -81,6 +125,17 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
         <button className="back-button" onClick={onLeave}>← Lobby</button>
         <Wordmark/>
         <div className="room-actions">
+          {hasRemote && (
+            <button
+              type="button"
+              className="change-video-nav-pill"
+              onClick={() => setChangeMediaOpen(true)}
+              title="Change video or switch media for the room"
+            >
+              <Icon name="swap" size={14} />
+              <span>Change Video</span>
+            </button>
+          )}
           <ThemeSelect theme={theme} onChange={onThemeChange}/>
           <div className="room-status" title={`${latency ?? "—"}ms latency · ${onlineMembers.length} member(s) online`}>
             <span className={connected ? "status-led" : "status-led dim"}/>
@@ -132,7 +187,17 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 poster={posterUrl || undefined}
                 onTimeUpdate={onTime}
                 onWaiting={() => reportBuffering(true)}
-                onPlaying={() => reportBuffering(false)}
+                onPlaying={() => {
+                  reportBuffering(false);
+                  if (hasRemote && !state.playing) {
+                    sendPlayback(true, video.current?.currentTime || 0);
+                  }
+                }}
+                onPause={() => {
+                  if (hasRemote && state.playing) {
+                    sendPlayback(false, video.current?.currentTime || 0);
+                  }
+                }}
                 onError={() => reportMediaFailure(provider === "hls" ? "hls-cors" : "media-load")}
                 onEnded={endPlayback}
                 playsInline
@@ -250,9 +315,10 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               </div>
             )}
             {provider === "instagram" && (
-              <div className="instagram-reel-stage">
+              <div className="instagram-reel-stage" onWheel={handleReelWheel}>
                 <div className="instagram-reel-card">
                   <iframe
+                    key={reelId}
                     className="instagram-reel-frame"
                     src={`https://www.instagram.com/reel/${reelId || "reel"}/embed/`}
                     title={config.title || "Instagram Reel"}
@@ -261,10 +327,50 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                     allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                   />
                 </div>
+                <div className="reel-scroll-sidebar">
+                  <button
+                    type="button"
+                    className="reel-nav-btn prev"
+                    disabled={!hasRemote || !canPrevReel}
+                    onClick={() => navigateReel(-1)}
+                    title={hasRemote ? "Previous reel (↑ or scroll up)" : "Host controls scrolling"}
+                    aria-label="Previous reel"
+                  >
+                    <Icon name="chevron" size={18}/>
+                  </button>
+                  <div className="reel-counter-badge" title="Current reel in feed">
+                    <span>{currentReelIndex + 1}</span>
+                    <small>/{reelsFeed.length}</small>
+                  </div>
+                  <button
+                    type="button"
+                    className="reel-nav-btn next"
+                    disabled={!hasRemote || !canNextReel}
+                    onClick={() => navigateReel(1)}
+                    title={hasRemote ? "Next reel (↓ or scroll down)" : "Host controls scrolling"}
+                    aria-label="Next reel"
+                  >
+                    <Icon name="chevron" size={18}/>
+                  </button>
+                  {hasRemote && (
+                    <button
+                      type="button"
+                      className="reel-add-btn"
+                      onClick={() => setChangeMediaOpen(true)}
+                      title="Paste or queue a new Reel"
+                      aria-label="Add or switch Reel"
+                    >
+                      <Icon name="plus" size={16}/>
+                    </button>
+                  )}
+                </div>
+                <div className="reel-scroll-hint">
+                  {hasRemote ? "Scroll wheel or ↑ / ↓ arrow keys to flip reels for everyone" : "Host is scrolling through reels"}
+                </div>
                 <div className="instagram-meta-overlay">
                   <div className="instagram-badge">
                     <span className="live-pulse"/>
-                    <span>INSTAGRAM REEL · SYNCED</span>
+                    <span>INSTAGRAM REEL · FEED SYNC</span>
                   </div>
                   <a href={config.source} target="_blank" rel="noreferrer" className="instagram-open-btn">
                     <span>Open on Instagram</span>
@@ -319,6 +425,17 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               <span>{isSyncOnly ? (provider === "instagram" ? "REEL CLOCK" : "ROOM CLOCK") : Number.isFinite(player?.duration()) ? formatTime(player.duration()) : "--:--"}</span>
               <button className="plain-icon"><Icon name="sound"/></button>
               <button className="plain-icon"><Icon name="expand"/></button>
+              {hasRemote && (
+                <button
+                  type="button"
+                  className="transport-change-pill"
+                  onClick={() => setChangeMediaOpen(true)}
+                  title="Switch video for the room"
+                >
+                  <Icon name="swap" size={12}/>
+                  <span>Switch Video</span>
+                </button>
+              )}
             </div>
             {!state.playing && state.reactionHighlights?.items?.length > 0 && (
               <section className="reaction-highlights" aria-label="Popular room reactions">

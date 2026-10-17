@@ -22,6 +22,8 @@ export function useRoomSession(profile, room) {
   const hasRemote = isSyncOnly
     ? state.hostId === selfId
     : state.config?.control === "shared" || state.hostId === selfId;
+  const hasRemoteRef = useRef(hasRemote);
+  hasRemoteRef.current = hasRemote;
   const applyState = next => setState(previous => ({
     ...previous,
     ...next,
@@ -117,7 +119,21 @@ export function useRoomSession(profile, room) {
         onStateChange: event => {
           const buffering = event.data === 3;
           reportBuffering(buffering);
-          if (event.data === 0) endPlayback();
+          if (event.data === 0) {
+            endPlayback();
+            return;
+          }
+          if (event.data === 1) {
+            if (hasRemoteRef.current && !stateRef.current.playing) {
+              sendPlayback(true, mediaPlayer.currentTime());
+            }
+          } else if (event.data === 2) {
+            if (hasRemoteRef.current && stateRef.current.playing) {
+              sendPlayback(false, mediaPlayer.currentTime());
+            } else if (!hasRemoteRef.current && stateRef.current.playing) {
+              mediaPlayer.play();
+            }
+          }
         },
         onError: code => {
           reportBuffering(false);

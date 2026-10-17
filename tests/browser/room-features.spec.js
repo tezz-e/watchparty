@@ -23,7 +23,7 @@ test("center play hero poster displays for YouTube and allows mid-room video cha
   await expect(page.locator(".center-play-badge")).toContainText("READY TO WATCH");
 
   // 2. Verify "Change Video" and "Screen Share" buttons exist in now-line
-  const changeBtn = page.getByRole("button", { name: /Change Video/ });
+  const changeBtn = page.locator(".now-action-pill", { hasText: "Change Video" });
   await expect(changeBtn).toBeVisible();
   const screenShareBtn = page.getByRole("button", { name: /Screen Share/ });
   await expect(screenShareBtn).toBeVisible();
