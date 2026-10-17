@@ -15,6 +15,10 @@ npm.cmd run server
 
 The production server serves the built app and Socket.IO from one origin (default port `3001`). Open that URL on each device. For Vite development, use `npm.cmd run dev`; its socket and API requests are proxied to `http://localhost:3001`. Set `VITE_BACKEND_URL` only when the API/media server is elsewhere. `VITE_SOCKET_URL` is an optional explicit Socket.IO URL override.
 
+## Shared room tools
+
+Room members can create a poll with custom options and change their vote until the host closes it. Add a supported direct media URL to a poll option to let the host send the winning pick to the shared queue. Queue picks accept upvotes, host reorder/remove, and automatically advance at the end of the current media; the most-upvoted queued item plays next, with manual queue order breaking ties. Reactions are recorded against the room playhead, drawn over the seek bar, and summarized as highlights when playback ends. The People panel includes each member's latest measured round-trip time, clock offset, drift, buffering, and connection status. The sync-only ready check remains honest that the app cannot read or control playback on another service.
+
 ## Screen sharing (LiveKit)
 
 Screen sharing is an optional video-only room feature. The room server issues a short-lived, one-use ticket and rechecks room membership and publishing permission before exchanging it for a five-minute LiveKit token. Everyone can subscribe; only the host can publish in host-control rooms, while shared-control rooms allow the current remote holders to publish. If LiveKit is not configured, the app shows that clearly and the rest of the room continues to work. Browser screen capture needs HTTPS (or localhost); streaming services may block capture, so use the sync-only mode for those services.
@@ -92,11 +96,14 @@ React + Vite client
   ├─ local catalog JSON + local poster artwork
   ├─ HTML video / hls.js / YouTube IFrame adapters
   ├─ sync-only external clock and readiness controls
+  ├─ shared polls, voted playlist, and reaction heatmap
+  ├─ per-member sync health
   └─ LiveKit WebRTC screen video (optional)
            │ same-origin HTTP + Socket.IO
            ▼
 Express + Socket.IO server
   ├─ authoritative in-memory room state and 15s reconnect grace
+  ├─ poll votes, playlist votes, timestamped reactions, and member telemetry
   ├─ one-use room tickets and scoped LiveKit access tokens
   ├─ URL-shape validation; no arbitrary URL fetching
   ├─ local media library with byte-range support

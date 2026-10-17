@@ -185,7 +185,7 @@ export function CreateRoom({ onClose, onEnter }) {
   );
 }
 
-export function Queue({ playlist, isHost, onPlay, onRemove, onAdd, mood }) {
+export function Queue({ playlist, isHost, selfId, onPlay, onRemove, onAdd, onVote, onMove, mood }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const { localItems } = useLocalLibrary();
@@ -201,7 +201,24 @@ export function Queue({ playlist, isHost, onPlay, onRemove, onAdd, mood }) {
     <div className="queue-pane">
       <div className="drawer-head"><span className="eyebrow"><span/>SHARED PLAYLIST</span><h3>{playlist.length ? `${playlist.length} picks on deck.` : "Add the next thing."}</h3></div>
       {mood?.current && <section className="mood-signal"><span className="eyebrow"><span/>ROOM MOOD · {mood.voters} SIGNAL{mood.voters === 1 ? "" : "S"}</span><b>The room feels {mood.current}.</b><small>Reactions are turning into shared picks.</small>{recommendations.map(item => <button key={item.id} onClick={() => onAdd(item)}>{item.title}<Icon name="plus" size={13}/></button>)}</section>}
-      <div className="queue-list">{playlist.map(item => <article key={item.id}><div><small>{item.category} · {item.duration}</small><b>{item.title}</b></div>{isHost && <span><button onClick={() => onPlay(item.id)} title="Play this item"><Icon name="play" size={14}/></button><button onClick={() => onRemove(item.id)} title="Remove"><Icon name="close" size={14}/></button></span>}</article>)}</div>
+      {playlist.length > 0 && <p className="queue-auto-advance">Next up automatically · highest-voted pick wins, then queue order.</p>}
+      <div className="queue-list">{playlist.map((item, index) => {
+        const voteCount = Object.keys(item.votes || {}).length;
+        return (
+          <article key={item.id}>
+            <div><small>{item.category} · {item.duration}</small><b>{item.title}</b><small>{voteCount} upvote{voteCount === 1 ? "" : "s"}</small></div>
+            <span className="queue-item-actions">
+              <button className={item.votes?.[selfId] ? "voted" : ""} onClick={() => onVote(item.id)} title={item.votes?.[selfId] ? "Remove your upvote" : "Upvote this pick"} aria-label={`Upvote ${item.title}`}><Icon name="check" size={14}/></button>
+              {isHost && <>
+                <button onClick={() => onMove(item.id, "up")} disabled={index === 0} title="Move up" aria-label={`Move ${item.title} up`}>↑</button>
+                <button onClick={() => onMove(item.id, "down")} disabled={index === playlist.length - 1} title="Move down" aria-label={`Move ${item.title} down`}>↓</button>
+                <button onClick={() => onPlay(item.id)} title="Play this item" aria-label={`Play ${item.title}`}><Icon name="play" size={14}/></button>
+                <button onClick={() => onRemove(item.id)} title="Remove" aria-label={`Remove ${item.title}`}><Icon name="close" size={14}/></button>
+              </>}
+            </span>
+          </article>
+        );
+      })}</div>
       <Discovery
         query={query}
         setQuery={setQuery}

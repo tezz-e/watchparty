@@ -27,7 +27,10 @@ export function makeRoom(id) {
     externalStarted: false,
     externalCountdown: null,
     playlist: [],
-    poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} },
+    activePlaylistItemId: null,
+    poll: null,
+    reactionHeatmap: [],
+    reactionHighlights: null,
     moods: {},
     telemetry: { commands: 0, driftSamples: 0, driftTotal: 0, maxDrift: 0, deliverySamples: 0, deliveryTotal: 0, deliveryTimeouts: 0 },
   };
@@ -59,7 +62,10 @@ export function roomSnapshot(room) {
     externalStarted: room.externalStarted,
     externalCountdown: room.externalCountdown,
     playlist: room.playlist,
+    activePlaylistItemId: room.activePlaylistItemId,
     poll: room.poll,
+    reactionHeatmap: room.reactionHeatmap,
+    reactionHighlights: room.reactionHighlights,
     mood: { current: mood, counts: moodCounts, voters: Object.keys(room.moods).length },
     telemetry: {
       commands: room.telemetry.commands,
@@ -76,13 +82,16 @@ export function roomSnapshot(room) {
 export function memberList(room) {
   return [...room.members.values()]
     .sort((a, b) => a.joinedAt - b.joinedAt)
-    .map(({ id, name, joinedAt, online, buffering, externalReady }) => ({
+    .map(({ id, name, joinedAt, online, buffering, externalReady, rttMs, clockOffsetMs, drift }) => ({
       id,
       name,
       joinedAt,
       online,
       buffering: Boolean(buffering),
       externalReady: Boolean(externalReady),
+      rttMs,
+      clockOffsetMs,
+      drift,
       host: id === room.hostId,
     }));
 }

@@ -8,6 +8,7 @@ import {
   now,
   onlineMembers,
   RECONNECT_GRACE_MS,
+  currentPosition,
   roomSnapshot,
   rooms,
   settleExternalCountdown,
@@ -46,6 +47,9 @@ export function registerSocketHandlers(io) {
       member.online = true;
       member.buffering = false;
       member.externalReady = Boolean(member.externalReady);
+      member.rttMs ??= null;
+      member.clockOffsetMs ??= null;
+      member.drift ??= null;
       member.socketId = socket.id;
       room.members.set(memberId, member);
       if (room.externalCountdown && !room.externalStarted) {
@@ -102,6 +106,9 @@ export function registerSocketHandlers(io) {
       room.playing = false;
       room.externalStarted = false;
       room.externalCountdown = null;
+      room.activePlaylistItemId = null;
+      room.reactionHeatmap = [];
+      room.reactionHighlights = null;
       for (const member of room.members.values()) member.externalReady = false;
       room.updatedAt = now();
       room.version += 1;
@@ -140,7 +147,20 @@ export function registerSocketHandlers(io) {
       room.telemetry.driftSamples += 1;
       room.telemetry.driftTotal += absoluteDrift;
       room.telemetry.maxDrift = Math.max(room.telemetry.maxDrift, absoluteDrift);
+      const member = room.members.get(socket.data.memberId);
+      if (member) member.drift = drift;
       socket.emit("room:telemetry", roomSnapshot(room).telemetry);
+      publishPresence(room);
+    });
+
+    socket.on("sync:health", ({ rttMs, clockOffsetMs } = {}) => {
+      const room = roomFor(socket);
+      const member = room?.members.get(socket.data.memberId);
+      if (!room || !member || !Number.isFinite(rttMs) || rttMs < 0 || rttMs > 60_000
+        || !Number.isFinite(clockOffsetMs) || Math.abs(clockOffsetMs) > 86_400_000) return;
+      member.rttMs = rttMs;
+      member.clockOffsetMs = clockOffsetMs;
+      publishPresence(room);
     });
 
     socket.on("media:buffering", ({ buffering } = {}) => {
@@ -236,6 +256,7 @@ export function registerSocketHandlers(io) {
         category: cleanText(item.category, "Other", 28),
         duration: cleanText(item.duration, "", 20),
         addedBy: socket.data.memberId,
+        votes: {},
       };
       room.playlist.push(entry);
       io.to(room.id).emit("playlist:state", room.playlist);
@@ -256,13 +277,83 @@ export function registerSocketHandlers(io) {
       room.config = { ...room.config, title: item.title, source: item.source };
       room.position = 0;
       room.playing = false;
+      room.activePlaylistItemId = item.id;
+      room.playlist = room.playlist.filter(entry => entry.id !== item.id);
+      room.reactionHeatmap = [];
+      room.reactionHighlights = null;
       room.externalStarted = false;
       room.externalCountdown = null;
       for (const member of room.members.values()) member.externalReady = false;
       room.updatedAt = now();
       room.version += 1;
       io.to(room.id).emit("room:config", room.config);
+      io.to(room.id).emit("playlist:state", room.playlist);
       publishPresence(room);
+      publishState(room);
+    });
+
+    socket.on("playlist:vote", ({ id } = {}) => {
+      const room = roomFor(socket);
+      const item = room?.playlist.find(entry => entry.id === id);
+      if (!room || !item) return reject(socket, "missing-item", "That queue item is no longer available.");
+      item.votes ||= {};
+      if (item.votes[socket.data.memberId]) delete item.votes[socket.data.memberId];
+      else item.votes[socket.data.memberId] = true;
+      io.to(room.id).emit("playlist:state", room.playlist);
+    });
+
+    socket.on("playlist:move", ({ id, direction } = {}) => {
+      const room = roomFor(socket);
+      if (!room || !isHost(room, socket)) return reject(socket, "host-only", "Only the host can reorder the queue.");
+      if (direction !== "up" && direction !== "down") return reject(socket, "invalid-direction", "Choose an adjacent queue position.");
+      const index = room.playlist.findIndex(item => item.id === id);
+      const nextIndex = index + (direction === "up" ? -1 : 1);
+      if (index < 0 || nextIndex < 0 || nextIndex >= room.playlist.length) return;
+      [room.playlist[index], room.playlist[nextIndex]] = [room.playlist[nextIndex], room.playlist[index]];
+      io.to(room.id).emit("playlist:state", room.playlist);
+    });
+
+    socket.on("playback:ended", ({ version } = {}) => {
+      const room = roomFor(socket);
+      if (!room || !isHost(room, socket)) return;
+      if (!room.playing || (Number.isFinite(version) && version < room.version)) {
+        socket.emit("room:state", roomSnapshot(room));
+        return;
+      }
+      const endedAt = currentPosition(room);
+      room.playing = false;
+      room.position = endedAt;
+      room.updatedAt = now();
+      const buckets = new Map();
+      for (const reaction of room.reactionHeatmap) {
+        const bucketPosition = Math.floor(reaction.position / 30) * 30;
+        const key = `${reaction.emoji}:${bucketPosition}`;
+        const bucket = buckets.get(key) || { emoji: reaction.emoji, position: bucketPosition, count: 0 };
+        bucket.count += 1;
+        buckets.set(key, bucket);
+      }
+      room.reactionHighlights = {
+        title: room.config.title,
+        items: [...buckets.values()].sort((a, b) => b.count - a.count).slice(0, 5),
+      };
+      const next = room.playlist
+        .map((item, index) => ({ item, index, votes: Object.keys(item.votes || {}).length }))
+        .sort((a, b) => b.votes - a.votes || a.index - b.index)[0]?.item;
+      if (next) {
+        room.config = { ...room.config, title: next.title, source: next.source };
+        room.position = 0;
+        room.playing = true;
+        room.activePlaylistItemId = next.id;
+        room.playlist = room.playlist.filter(item => item.id !== next.id);
+        room.reactionHeatmap = [];
+        room.externalStarted = false;
+        room.externalCountdown = null;
+        for (const member of room.members.values()) member.externalReady = false;
+        io.to(room.id).emit("room:config", room.config);
+        io.to(room.id).emit("playlist:state", room.playlist);
+        publishPresence(room);
+      }
+      room.version += 1;
       publishState(room);
     });
 
@@ -309,17 +400,95 @@ export function registerSocketHandlers(io) {
 
     socket.on("reaction:send", ({ emoji } = {}) => {
       const room = roomFor(socket);
-      if (!room || !moodByEmoji[emoji]) return;
+      const member = room?.members.get(socket.data.memberId);
+      if (!room || !member || !moodByEmoji[emoji]) return;
       room.moods[socket.data.memberId] = moodByEmoji[emoji];
-      io.to(room.id).emit("reaction", { emoji, memberId: socket.data.memberId, createdAt: now() });
+      const reaction = {
+        id: `${now()}-${socket.id}`,
+        emoji,
+        mood: moodByEmoji[emoji],
+        memberId: member.id,
+        name: member.name,
+        position: currentPosition(room),
+        createdAt: now(),
+      };
+      room.reactionHeatmap.push(reaction);
+      room.reactionHeatmap = room.reactionHeatmap.slice(-250);
+      io.to(room.id).emit("reaction", reaction);
+      io.to(room.id).emit("reaction:heatmap", room.reactionHeatmap);
       io.to(room.id).emit("mood:update", roomSnapshot(room).mood);
     });
 
-    socket.on("poll:vote", ({ option } = {}) => {
+    socket.on("poll:create", ({ question, options } = {}) => {
       const room = roomFor(socket);
-      if (!room || !room.poll.options.includes(option)) return;
-      room.poll.votes[socket.data.memberId] = option;
+      if (room?.poll && !room.poll.closed) return reject(socket, "poll-active", "Close the current poll before starting another.");
+      if (!room || !Array.isArray(options)) return reject(socket, "invalid-poll", "Add a question and two to six options.");
+      const cleanOptions = options
+        .filter(option => option && typeof option.label === "string")
+        .slice(0, 6)
+        .map((option, index) => ({
+          id: `${now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+          label: cleanText(option.label, "", 80),
+          item: option.item && validMediaUrl(option.item.source)
+            ? {
+                title: cleanText(option.item.title, option.label, 80),
+                source: cleanText(option.item.source, "", 1000),
+                category: cleanText(option.item.category, "Poll pick", 28),
+                duration: cleanText(option.item.duration, "", 20),
+              }
+            : null,
+        }))
+        .filter(option => option.label);
+      if (cleanOptions.length < 2) return reject(socket, "invalid-poll", "A poll needs at least two non-empty options.");
+      room.poll = {
+        id: `${now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        question: cleanText(question, "What should we watch next?", 120),
+        options: cleanOptions,
+        votes: {},
+        closed: false,
+        createdBy: socket.data.memberId,
+      };
       io.to(room.id).emit("poll:update", room.poll);
+    });
+
+    socket.on("poll:vote", ({ optionId } = {}) => {
+      const room = roomFor(socket);
+      if (!room?.poll || room.poll.closed || !room.poll.options.some(option => option.id === optionId)) {
+        return reject(socket, "poll-closed", "That poll is closed or the option is no longer available.");
+      }
+      room.poll.votes[socket.data.memberId] = optionId;
+      io.to(room.id).emit("poll:update", room.poll);
+    });
+
+    socket.on("poll:close", () => {
+      const room = roomFor(socket);
+      if (!room?.poll) return reject(socket, "poll-missing", "There is no poll to close.");
+      if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can close the poll.");
+      room.poll.closed = true;
+      io.to(room.id).emit("poll:update", room.poll);
+    });
+
+    socket.on("poll:queue-winner", () => {
+      const room = roomFor(socket);
+      if (!room?.poll?.closed) return reject(socket, "poll-open", "Close the poll before sending its winner to the queue.");
+      if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can queue the poll winner.");
+      const winner = room.poll.options
+        .map((option, index) => ({
+          option,
+          index,
+          votes: Object.values(room.poll.votes).filter(vote => vote === option.id).length,
+        }))
+        .sort((a, b) => b.votes - a.votes || a.index - b.index)[0];
+      if (!winner?.votes) return reject(socket, "no-poll-votes", "The poll needs at least one vote before its winner can be queued.");
+      if (!winner?.option.item) return reject(socket, "winner-unplayable", "The winning option needs a supported media URL before it can be queued.");
+      if (room.playlist.length >= 50) return reject(socket, "queue-full", "The shared queue is full.");
+      room.playlist.push({
+        id: `${now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        ...winner.option.item,
+        addedBy: socket.data.memberId,
+        votes: {},
+      });
+      io.to(room.id).emit("playlist:state", room.playlist);
     });
 
     socket.on("latency:ping", ({ clientSentAt } = {}, acknowledge) => {
@@ -353,6 +522,12 @@ export function registerSocketHandlers(io) {
         if (!liveRoom || !liveMember || liveMember.online) return;
         liveRoom.members.delete(member.id);
         delete liveRoom.moods[member.id];
+        if (liveRoom.poll?.votes[member.id]) {
+          delete liveRoom.poll.votes[member.id];
+          io.to(liveRoom.id).emit("poll:update", liveRoom.poll);
+        }
+        for (const item of liveRoom.playlist) delete item.votes?.[member.id];
+        io.to(liveRoom.id).emit("playlist:state", liveRoom.playlist);
         if (liveRoom.hostId === member.id) electHost(liveRoom);
         if (liveRoom.members.size === 0) {
           rooms.delete(liveRoom.id);

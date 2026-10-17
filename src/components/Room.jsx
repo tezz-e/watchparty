@@ -5,23 +5,27 @@ import { tints } from "../data/catalog.js";
 import { formatTime } from "../utils/watchParty.js";
 import { useRoomSession } from "../hooks/useRoomSession.js";
 import "./YoutubePlayer.css";
+import "./RoomFeatures.css";
 
 const LiveKitScreen = lazy(() => import("./LiveKitScreen.jsx"));
 
 export default function Room({ profile, room, onLeave }) {
   const [draft, setDraft] = useState("");
   const [drawer, setDrawer] = useState("chat");
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState([{ label: "", source: "" }, { label: "", source: "" }]);
+  const [creatingPoll, setCreatingPoll] = useState(false);
   const [, setCountdownTick] = useState(0);
   const {
     state, connected, selfId, members, messages, reaction, copied, latency, notice,
     video, youtube, provider, platform, reportBuffering, reportMediaFailure,
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
-    togglePlayback, onTime, share, externalReady, setExternalReady,
+    togglePlayback, onTime, endPlayback, share, externalReady, setExternalReady,
     localOffset, updateLocalOffset, getServerNow,
     requestScreenTicket,
   } = useRoomSession(profile, room);
-  const poll = state.poll || { options: [], votes: {} };
-  const votes = Object.values(poll.votes || {});
+  const poll = state.poll;
+  const votes = Object.values(poll?.votes || {});
   const voteCount = votes.length;
   const player = getPlayer();
   const duration = provider === "external" ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
@@ -73,7 +77,7 @@ export default function Room({ profile, room, onLeave }) {
                 onWaiting={() => reportBuffering(true)}
                 onPlaying={() => reportBuffering(false)}
                 onError={() => reportMediaFailure(provider === "hls" ? "hls-cors" : "media-load")}
-                onEnded={() => sendPlayback(false, getPlayer()?.currentTime() || 0)}
+                onEnded={endPlayback}
                 playsInline
                 preload="metadata"
               />
@@ -102,26 +106,47 @@ export default function Room({ profile, room, onLeave }) {
                 <Icon name={state.playing ? "pause" : "play"} size={18}/>
               </button>
               <span>{formatTime(position)}</span>
-              <input
-                disabled={!hasRemote || (provider === "external" && !state.externalStarted)}
-                type="range"
-                min="0"
-                max={duration}
-                step={provider === "external" ? "1" : ".1"}
-                value={Math.min(position, duration)}
-                onChange={event => {
-                  const nextPosition = Number(event.target.value);
-                  player?.seek(nextPosition);
-                  sendPlayback(state.playing, provider === "external"
-                    ? Math.max(0, nextPosition - localOffset)
-                    : nextPosition);
-                }}
-                style={{ "--track": `${Math.min(position / duration * 100, 100)}%` }}
-              />
+              <div className="timeline-control">
+                <div className="reaction-heatmap" aria-label="Room reactions on the timeline">
+                  {(state.reactionHeatmap || []).map(item => (
+                    <span
+                      key={item.id}
+                      style={{ left: `${Math.max(0, Math.min(100, item.position / duration * 100))}%` }}
+                      title={`${item.name} reacted ${item.emoji} at ${formatTime(item.position)}`}
+                    >{item.emoji}</span>
+                  ))}
+                </div>
+                <input
+                  disabled={!hasRemote || (provider === "external" && !state.externalStarted)}
+                  type="range"
+                  min="0"
+                  max={duration}
+                  step={provider === "external" ? "1" : ".1"}
+                  value={Math.min(position, duration)}
+                  onChange={event => {
+                    const nextPosition = Number(event.target.value);
+                    player?.seek(nextPosition);
+                    sendPlayback(state.playing, provider === "external"
+                      ? Math.max(0, nextPosition - localOffset)
+                      : nextPosition);
+                  }}
+                  style={{ "--track": `${Math.min(position / duration * 100, 100)}%` }}
+                />
+              </div>
               <span>{provider === "external" ? "ROOM CLOCK" : Number.isFinite(player?.duration()) ? formatTime(player.duration()) : "--:--"}</span>
               <button className="plain-icon"><Icon name="sound"/></button>
               <button className="plain-icon"><Icon name="expand"/></button>
             </div>
+            {!state.playing && state.reactionHighlights?.items?.length > 0 && (
+              <section className="reaction-highlights" aria-label="Popular room reactions">
+                <span className="eyebrow">REACTION HIGHLIGHTS · {state.reactionHighlights.title}</span>
+                {state.reactionHighlights.items.map(item => (
+                  <button key={`${item.emoji}-${item.position}`} onClick={() => player?.seek(item.position)}>
+                    <b>{item.emoji} ×{item.count}</b><span>{formatTime(item.position)}</span>
+                  </button>
+                ))}
+              </section>
+            )}
             <Suspense fallback={null}>
               <LiveKitScreen roomId={room.id} connected={connected} canPublish={hasRemote} requestTicket={requestScreenTicket}/>
             </Suspense>
@@ -209,10 +234,13 @@ export default function Room({ profile, room, onLeave }) {
             <Queue
               playlist={state.playlist || []}
               isHost={state.hostId === selfId}
+              selfId={selfId}
               mood={state.mood}
               onAdd={item => send("playlist:add", item)}
               onPlay={id => send("playlist:play", { id })}
               onRemove={id => send("playlist:remove", { id })}
+              onVote={id => send("playlist:vote", { id })}
+              onMove={(id, direction) => send("playlist:move", { id, direction })}
             />
           )}
           {drawer === "people" && (
@@ -222,7 +250,13 @@ export default function Room({ profile, room, onLeave }) {
                 {members.map((member, index) => (
                   <div key={member.id} className={!member.online ? "offline" : ""}>
                     <Avatar name={member.name} tint={tints[index % 4]}/>
-                    <span>{member.name}{member.id === state.hostId && <small>HOST</small>}{member.buffering && <small>BUFFERING</small>}{!member.online && <small>RECONNECTING</small>}</span>
+                    <span className="member-health">
+                      {member.name}{member.id === state.hostId && <small>HOST</small>}
+                      {member.buffering && <small>BUFFERING</small>}{!member.online && <small>RECONNECTING</small>}
+                      <small>{member.rttMs === null || member.rttMs === undefined ? "RTT —" : `RTT ${Math.round(member.rttMs)}ms`}</small>
+                      <small>{member.drift === null || member.drift === undefined ? "DRIFT —" : `DRIFT ${member.drift.toFixed(2)}s`}</small>
+                      <small>{member.clockOffsetMs === null || member.clockOffsetMs === undefined ? "OFFSET —" : `OFFSET ${Math.round(member.clockOffsetMs)}ms`}</small>
+                    </span>
                     <i/>
                     {state.hostId === selfId && member.id !== selfId && member.online && (
                       <button className="member-transfer" title={`Make ${member.name} host`} onClick={() => send("host:transfer", { memberId: member.id })}>
@@ -236,17 +270,54 @@ export default function Room({ profile, room, onLeave }) {
           )}
           {drawer === "poll" && (
             <div className="poll-pane">
-              <span className="eyebrow"><span/>GROUP DECISION</span><h3>{poll.question}</h3>
-              {poll.options.map(option => {
-                const count = votes.filter(vote => vote === option).length;
-                const percentage = voteCount ? count / voteCount * 100 : 0;
-                return (
-                  <button key={option} onClick={() => send("poll:vote", { option })}>
-                    <span>{option}</span><b>{Math.round(percentage)}%</b><i style={{ width: `${percentage}%` }}/>
-                  </button>
-                );
-              })}
-              <small>{voteCount} votes · live for everyone</small>
+              {(!poll || creatingPoll) && (
+                <form className="poll-create" onSubmit={event => {
+                  event.preventDefault();
+                  send("poll:create", {
+                    question: pollQuestion,
+                    options: pollOptions.map(option => ({
+                      label: option.label,
+                      item: option.source.trim() ? { title: option.label, source: option.source, category: "Poll pick" } : null,
+                    })),
+                  });
+                  setCreatingPoll(false);
+                }}>
+                  <span className="eyebrow"><span/>GROUP DECISION</span><h3>Create a poll.</h3>
+                  <label>QUESTION<input value={pollQuestion} onChange={event => setPollQuestion(event.target.value)} maxLength={120} placeholder="What should we watch?"/></label>
+                  {pollOptions.map((option, index) => (
+                    <fieldset key={index}>
+                      <input aria-label={`Poll option ${index + 1}`} value={option.label} onChange={event => setPollOptions(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item))} maxLength={80} placeholder={`Option ${index + 1}`}/>
+                      <input aria-label={`Option ${index + 1} media URL`} value={option.source} onChange={event => setPollOptions(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, source: event.target.value } : item))} placeholder="Optional supported media URL"/>
+                    </fieldset>
+                  ))}
+                  <button type="button" className="poll-add-option" disabled={pollOptions.length >= 6} onClick={() => setPollOptions(current => [...current, { label: "", source: "" }])}>Add option</button>
+                  <button className="poll-submit" disabled={pollOptions.some(option => !option.label.trim())}>Start poll</button>
+                </form>
+              )}
+              {poll && !creatingPoll && (
+                <>
+                  <span className="eyebrow"><span/>GROUP DECISION{poll.closed ? " · CLOSED" : ""}</span><h3>{poll.question}</h3>
+                  {poll.options.map(option => {
+                    const count = votes.filter(vote => vote === option.id).length;
+                    const percentage = voteCount ? count / voteCount * 100 : 0;
+                    return (
+                      <button key={option.id} className={poll.votes?.[selfId] === option.id ? "selected" : ""} disabled={poll.closed} onClick={() => send("poll:vote", { optionId: option.id })}>
+                        <span>{option.label}</span><b>{Math.round(percentage)}%</b><i style={{ width: `${percentage}%` }}/>
+                      </button>
+                    );
+                  })}
+                  <small>{voteCount} votes · {poll.closed ? "results are final" : "one changeable vote per person"}</small>
+                  <div className="poll-actions">
+                    {!poll.closed && state.hostId === selfId && <button onClick={() => send("poll:close")}>Close poll</button>}
+                    {poll.closed && state.hostId === selfId && <button onClick={() => send("poll:queue-winner")}>Queue winning pick</button>}
+                    {poll.closed && <button onClick={() => {
+                      setPollQuestion("");
+                      setPollOptions([{ label: "", source: "" }, { label: "", source: "" }]);
+                      setCreatingPoll(true);
+                    }}>New poll</button>}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </aside>

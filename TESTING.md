@@ -28,6 +28,9 @@ The integration suite starts an isolated server on an available local port and c
 | Late join | A joining client receives the server's current source and playhead. |
 | Reconnect and host | Rejoining within the grace window retains host identity; expiry promotes the next online participant. |
 | Queue and host control | Invalid picks are rejected, queue picks update the shared media, and stale concurrent commands do not overwrite newer state. |
+| Poll and queue lifecycle | `tests/rooms.test.js` covers custom poll options, one changeable vote per member, host-only closure, winner-to-queue behavior, one-per-member queue upvotes, host reorder authorization, and highest-voted auto-advance with queue-order tie breaking. |
+| Reaction heatmap | Reactions carry the current server playhead position; bounded room history feeds the visible timeline and end-of-video highlight summary. |
+| Per-member sync health | Room presence exposes each member's latest round-trip time, estimated clock offset, local drift, buffering, and online status; malformed health samples are ignored. |
 | Mood signal | One latest reaction per member contributes to the room mood, which changes when that member changes reaction. |
 | Sync-only ready check | Room readiness is tracked per online member; only the host can start the three-second countdown, late joins cancel it, and the host alone can pause/resume the shared clock. |
 | LiveKit fallback and authorization | `tests/livekit.test.js` checks configuration, host/shared-control publishing permissions, one-use/expiry tickets, redemption-time permission rechecks, and screen-only token grants. `tests/rooms.test.js` checks the explicit disabled-server response when LiveKit is unconfigured. |
@@ -53,6 +56,8 @@ To manually verify actual screen-share media (not covered by this environment's 
 6. Stop Docker and reload the room; verify the explicit “not configured” fallback and that normal synchronized playback remain available.
 
 Automated tests verify ticket logic and the unconfigured fallback only; they do not start Docker or assert end-to-end WebRTC connectivity, TLS trust, UDP reachability, or decoded screen-share playback. Configure LiveKit's advertised network address and firewall/port forwarding separately for participants outside the local network. Screen capture of streaming services may be blocked by browser/service policy; use sync-only mode in that case.
+
+For the M5 room tools, create a poll with two or more options (optionally give each a supported media URL), vote from multiple clients, change a vote, close it as host, and queue the winning option. Add multiple picks and verify upvotes, host-only reorder, then finish the current video to confirm the highest-voted next pick starts. Send reactions during playback and confirm marks appear along the seek bar and a summary appears when playback ends. The People drawer should show per-member RTT, offset, drift, buffering, and reconnect state.
 
 Place authorized `.mp4` or `.webm` files in `media/`; the directory listing appears in discovery and supports byte-range seeking. Files in that directory are ignored by Git. Delivery metrics are retained in a bounded 10,000-sample window while the sample and timeout counters remain cumulative for the server process.
 

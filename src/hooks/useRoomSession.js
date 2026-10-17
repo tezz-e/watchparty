@@ -9,7 +9,7 @@ import { isMixedContent, mediaProvider, streamingPlatform, youtubeVideoId } from
 import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
-  const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
+  const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: null, reactionHeatmap: [], reactionHighlights: null, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
   const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState(""), [localOffset, setLocalOffsetState] = useState(0), [externalReady, setExternalReady] = useState(false);
   const socket = useRef(null), video = useRef(null), youtube = useRef(null), player = useRef(null), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), localOffsetRef = useRef(localOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
   stateRef.current = state;
@@ -20,7 +20,15 @@ export function useRoomSession(profile, room) {
   const hasRemote = provider === "external"
     ? state.hostId === selfId
     : state.config?.control === "shared" || state.hostId === selfId;
-  const applyState = next => setState(previous => ({ ...previous, ...next, config: next.config ? { ...previous.config, ...next.config } : previous.config, playlist: next.playlist || previous.playlist, poll: next.poll || previous.poll }));
+  const applyState = next => setState(previous => ({
+    ...previous,
+    ...next,
+    config: next.config ? { ...previous.config, ...next.config } : previous.config,
+    playlist: next.playlist ?? previous.playlist,
+    poll: Object.hasOwn(next, "poll") ? next.poll : previous.poll,
+    reactionHeatmap: next.reactionHeatmap ?? previous.reactionHeatmap,
+    reactionHighlights: Object.hasOwn(next, "reactionHighlights") ? next.reactionHighlights : previous.reactionHighlights,
+  }));
   const getPlayer = () => player.current;
   const getDesiredPosition = playbackState => {
     const desired = getCanonicalPosition(playbackState);
@@ -58,7 +66,7 @@ export function useRoomSession(profile, room) {
       setMembers(nextMembers);
       setExternalReady(Boolean(nextMembers.find(member => member.id === memberId.current)?.externalReady));
     }); client.on("playlist:state", playlist => setState(previous => ({ ...previous, playlist })));
-    client.on("chat:message", message => setMessages(previous => [...previous, message])); client.on("reaction", ({ emoji }) => setReaction(emoji)); client.on("poll:update", poll => setState(previous => ({ ...previous, poll })));
+    client.on("chat:message", message => setMessages(previous => [...previous, message])); client.on("reaction", ({ emoji }) => setReaction(emoji)); client.on("reaction:heatmap", reactionHeatmap => setState(previous => ({ ...previous, reactionHeatmap }))); client.on("poll:update", poll => setState(previous => ({ ...previous, poll })));
     client.on("mood:update", mood => setState(previous => ({ ...previous, mood })));
     client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
     client.on("room:error", error => setNotice(error.message));
@@ -73,9 +81,15 @@ export function useRoomSession(profile, room) {
       const clientSentAt = Date.now();
       socket.current?.emit("latency:ping", { clientSentAt }, reply => {
         const clientReceivedAt = Date.now();
-        if (reply?.clientSentAt) setLatency(clientReceivedAt - reply.clientSentAt);
-        const offset = clockEstimator.current.add({ ...reply, clientSentAt, clientReceivedAt });
-        if (offset !== null) setClockOffset(offset);
+        if (!reply?.clientSentAt) return;
+        const rttMs = clientReceivedAt - reply.clientSentAt;
+        setLatency(rttMs);
+        const nextOffset = clockEstimator.current.add({ ...reply, clientSentAt, clientReceivedAt });
+        if (nextOffset !== null) setClockOffset(nextOffset);
+        socket.current?.emit("sync:health", {
+          rttMs,
+          clockOffsetMs: nextOffset ?? clockOffsetRef.current,
+        });
       });
     };
     probe();
@@ -95,7 +109,7 @@ export function useRoomSession(profile, room) {
         onStateChange: event => {
           const buffering = event.data === 3;
           reportBuffering(buffering);
-          if (event.data === 0) sendPlayback(false, mediaPlayer.currentTime());
+          if (event.data === 0) endPlayback();
         },
         onError: code => {
           reportBuffering(false);
@@ -173,6 +187,7 @@ export function useRoomSession(profile, room) {
   }, [state.playing, state.position, state.updatedAt, config.source, provider, clockOffset]);
 
   const send = (event, payload) => socket.current?.emit(event, payload);
+  const endPlayback = () => send("playback:ended", { version: stateRef.current.version });
   const requestScreenTicket = useCallback(() => new Promise((resolve, reject) => {
     if (!socket.current?.connected) {
       reject(new Error("Reconnect to the room before starting screen sharing."));
@@ -219,5 +234,5 @@ export function useRoomSession(profile, room) {
   }, [provider, config.source, hasRemote]);
   const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
 }

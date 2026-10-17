@@ -383,6 +383,126 @@ test("stale concurrent playback commands are rejected and shared mood recommenda
   assert.deepEqual(secondMood.counts, { cozy: 1 });
 });
 
+test("custom polls support changeable votes, host closure, winner queuing, and voted auto-advance", async () => {
+  const host = await connect("poll-host-0001");
+  const { roomId } = await createRoom(host);
+  const viewer = await connect("poll-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  const pollCreated = eventOnce(host.socket, "poll:update");
+  host.socket.emit("poll:create", {
+    question: "What should we watch next?",
+    options: [
+      { label: "First pick", item: { title: "First pick", source: "https://media.example/first.mp4" } },
+      { label: "Second pick", item: { title: "Second pick", source: "https://media.example/second.webm" } },
+    ],
+  });
+  const [poll] = await pollCreated;
+  assert.equal(poll.options.length, 2);
+  assert.equal(poll.closed, false);
+
+  const hostVote = eventOnce(viewer.socket, "poll:update", update => Object.keys(update.votes).length === 1);
+  host.socket.emit("poll:vote", { optionId: poll.options[0].id });
+  assert.equal(Object.keys((await hostVote)[0].votes).length, 1);
+  const viewerVote = eventOnce(host.socket, "poll:update");
+  viewer.socket.emit("poll:vote", { optionId: poll.options[1].id });
+  await viewerVote;
+  const changedVote = eventOnce(host.socket, "poll:update");
+  viewer.socket.emit("poll:vote", { optionId: poll.options[0].id });
+  assert.equal(Object.values((await changedVote)[0].votes).filter(id => id === poll.options[0].id).length, 2);
+
+  const deniedClose = eventOnce(viewer.socket, "room:error");
+  viewer.socket.emit("poll:close");
+  assert.equal((await deniedClose)[0].code, "host-only");
+  const closedPoll = eventOnce(host.socket, "poll:update", update => update.closed);
+  host.socket.emit("poll:close");
+  assert.equal((await closedPoll)[0].closed, true);
+
+  const queuedWinner = eventOnce(host.socket, "playlist:state");
+  host.socket.emit("poll:queue-winner");
+  const [firstQueue] = await queuedWinner;
+  assert.equal(firstQueue[0].title, "First pick");
+  const addedSecond = eventOnce(host.socket, "playlist:state", update => update.length === 2);
+  viewer.socket.emit("playlist:add", { title: "Second pick", source: "https://media.example/second.webm" });
+  const [twoPicks] = await addedSecond;
+  const secondId = twoPicks.find(item => item.title === "Second pick").id;
+  const addedThird = eventOnce(host.socket, "playlist:state", update => update.length === 3);
+  host.socket.emit("playlist:add", { title: "Third pick", source: "https://media.example/third.mp4" });
+  const [threePicks] = await addedThird;
+  const thirdId = threePicks.find(item => item.title === "Third pick").id;
+
+  const removeDenied = eventOnce(viewer.socket, "room:error");
+  viewer.socket.emit("playlist:remove", { id: thirdId });
+  assert.equal((await removeDenied)[0].code, "host-only");
+  const removed = eventOnce(host.socket, "playlist:state", update => update.length === 2);
+  host.socket.emit("playlist:remove", { id: thirdId });
+  await removed;
+
+  const secondUpvote = eventOnce(host.socket, "playlist:state", update => update.find(item => item.id === secondId)?.votes?.[viewer.memberId]);
+  viewer.socket.emit("playlist:vote", { id: secondId });
+  await secondUpvote;
+  const moveDenied = eventOnce(viewer.socket, "room:error");
+  viewer.socket.emit("playlist:move", { id: secondId, direction: "up" });
+  assert.equal((await moveDenied)[0].code, "host-only");
+
+  const reordered = eventOnce(host.socket, "playlist:state", update => update[0]?.id === secondId);
+  host.socket.emit("playlist:move", { id: secondId, direction: "up" });
+  assert.equal((await reordered)[0][0].title, "Second pick");
+
+  const started = eventOnce(host.socket, "playback:state", state => state.playing);
+  host.socket.emit("playback:update", { playing: true, position: 12, version: 0 });
+  const [playingState] = await started;
+  const nextConfig = eventOnce(host.socket, "room:config", config => config.title === "Second pick");
+  const advancedState = eventOnce(host.socket, "room:state", state => state.config.title === "Second pick" && state.playing);
+  host.socket.emit("playback:ended", { version: playingState.version });
+  assert.equal((await nextConfig)[0].source, "https://media.example/second.webm");
+  const [advance] = await advancedState;
+  assert.equal(advance.activePlaylistItemId, secondId);
+  const staleEnd = eventOnce(host.socket, "room:state", state => state.config.title === "Second pick");
+  host.socket.emit("playback:ended", { version: playingState.version });
+  assert.equal((await staleEnd)[0].playlist.length, 1);
+});
+
+test("reaction heatmap records media positions and sync-health panel receives member telemetry", async () => {
+  const host = await connect("health-host-0001");
+  const { roomId } = await createRoom(host);
+  const viewer = await connect("health-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  const started = eventOnce(host.socket, "playback:state", state => state.playing);
+  host.socket.emit("playback:update", { playing: true, position: 42, version: 0 });
+  const [playingState] = await started;
+
+  const reactionAtViewer = eventOnce(viewer.socket, "reaction");
+  host.socket.emit("reaction:send", { emoji: "👏" });
+  assert.ok((await reactionAtViewer)[0].position >= 42);
+  const heatmapAtHost = eventOnce(host.socket, "reaction:heatmap", items => items.length === 2);
+  viewer.socket.emit("reaction:send", { emoji: "👏" });
+  const [heatmap] = await heatmapAtHost;
+  assert.equal(heatmap[0].emoji, "👏");
+  assert.equal(heatmap[0].position >= 42, true);
+
+  const health = eventOnce(host.socket, "room:presence", members => members.some(member => member.id === viewer.memberId && member.rttMs === 120));
+  viewer.socket.emit("sync:health", { rttMs: 120, clockOffsetMs: -32 });
+  const [members] = await health;
+  const viewerHealth = members.find(member => member.id === viewer.memberId);
+  assert.equal(viewerHealth.clockOffsetMs, -32);
+
+  const drift = eventOnce(host.socket, "room:presence", members => members.some(member => member.id === viewer.memberId && member.drift === 0.25));
+  viewer.socket.emit("sync:health", { rttMs: -1, clockOffsetMs: Number.NaN });
+  viewer.socket.emit("sync:drift", { drift: 0.25 });
+  const [membersWithDrift] = await drift;
+  const healthAfterInvalidSample = membersWithDrift.find(member => member.id === viewer.memberId);
+  assert.equal(healthAfterInvalidSample.rttMs, 120);
+  assert.equal(healthAfterInvalidSample.clockOffsetMs, -32);
+
+  const ended = eventOnce(host.socket, "room:state", state => state.reactionHighlights?.items?.length);
+  host.socket.emit("playback:ended", { version: playingState.version });
+  const [endState] = await ended;
+  assert.equal(endState.reactionHighlights.title, "Integration test");
+  assert.equal(endState.reactionHighlights.items[0].count, 2);
+});
+
 test("sync-only rooms require a ready check, use a host countdown, and keep the clock host-controlled", async () => {
   const host = await connect("sync-only-host-0001");
   const { roomId } = await createRoom(host, {
