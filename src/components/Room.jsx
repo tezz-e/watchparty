@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
 import { tints } from "../data/catalog.js";
@@ -9,11 +9,13 @@ import "./YoutubePlayer.css";
 export default function Room({ profile, room, onLeave }) {
   const [draft, setDraft] = useState("");
   const [drawer, setDrawer] = useState("chat");
+  const [, setCountdownTick] = useState(0);
   const {
     state, connected, selfId, members, messages, reaction, copied, latency, notice,
     video, youtube, provider, platform, reportBuffering, reportMediaFailure,
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
-    togglePlayback, onTime, share,
+    togglePlayback, onTime, share, externalReady, setExternalReady,
+    localOffset, updateLocalOffset, getServerNow,
   } = useRoomSession(profile, room);
   const poll = state.poll || { options: [], votes: {} };
   const votes = Object.values(poll.votes || {});
@@ -22,6 +24,17 @@ export default function Room({ profile, room, onLeave }) {
   const duration = provider === "external" ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
   const position = getDesiredPosition();
   const telemetry = state.telemetry || {};
+  const onlineMembers = members.filter(member => member.online);
+  const readyMembers = onlineMembers.filter(member => member.externalReady);
+  const countdownSeconds = state.externalCountdown
+    ? Math.max(0, (state.externalCountdown.startsAt - getServerNow()) / 1000)
+    : null;
+
+  useEffect(() => {
+    if (provider !== "external" || !state.externalCountdown) return undefined;
+    const interval = setInterval(() => setCountdownTick(value => value + 1), 100);
+    return () => clearInterval(interval);
+  }, [provider, state.externalCountdown?.startsAt]);
 
   return (
     <SoftField className="room-page">
@@ -80,12 +93,12 @@ export default function Room({ profile, room, onLeave }) {
               <span>{members.filter(member => member.online).length || 1} IN ROOM</span>
             </div>
             <div className="transport">
-              <button className="transport-play" disabled={!hasRemote} onClick={togglePlayback}>
+              <button className="transport-play" disabled={!hasRemote || (provider === "external" && !state.externalStarted)} onClick={togglePlayback}>
                 <Icon name={state.playing ? "pause" : "play"} size={18}/>
               </button>
               <span>{formatTime(position)}</span>
               <input
-                disabled={!hasRemote}
+                disabled={!hasRemote || (provider === "external" && !state.externalStarted)}
                 type="range"
                 min="0"
                 max={duration}
@@ -94,7 +107,9 @@ export default function Room({ profile, room, onLeave }) {
                 onChange={event => {
                   const nextPosition = Number(event.target.value);
                   player?.seek(nextPosition);
-                  sendPlayback(state.playing, nextPosition);
+                  sendPlayback(state.playing, provider === "external"
+                    ? Math.max(0, nextPosition - localOffset)
+                    : nextPosition);
                 }}
                 style={{ "--track": `${Math.min(position / duration * 100, 100)}%` }}
               />
@@ -103,6 +118,44 @@ export default function Room({ profile, room, onLeave }) {
               <button className="plain-icon"><Icon name="expand"/></button>
             </div>
           </div>
+          {provider === "external" && (
+            <section className="external-room-controls">
+              <div className="external-controls-copy">
+                <span className="eyebrow"><span/>SYNC-ONLY READY CHECK</span>
+                <p>Afterglow cannot control or inspect the streaming service. Open the title in your own account, then mark yourself ready.</p>
+                <div className="external-ready-list">
+                  {onlineMembers.map(member => <span key={member.id} className={member.externalReady ? "ready" : ""}>{member.name} · {member.externalReady ? "READY" : "NOT READY"}</span>)}
+                  {!onlineMembers.length && <span>Waiting for participants…</span>}
+                </div>
+              </div>
+              <div className="external-controls-actions">
+                <button className={externalReady ? "external-ready-toggle ready" : "external-ready-toggle"} onClick={() => setExternalReady(!externalReady)}>
+                  {externalReady ? "I’m ready" : "Mark me ready"}
+                </button>
+                {state.hostId === selfId && !state.externalStarted && (
+                  <button
+                    className="external-countdown-button"
+                    disabled={!onlineMembers.length || readyMembers.length !== onlineMembers.length}
+                    onClick={() => send("external:countdown")}
+                  >
+                    {countdownSeconds !== null && countdownSeconds > 0 ? `Starting in ${Math.ceil(countdownSeconds)}…` : "Start 3-2-1"}
+                  </button>
+                )}
+                {state.hostId === selfId && countdownSeconds !== null && countdownSeconds > 0 && (
+                  <button className="external-cancel-button" onClick={() => send("external:countdown-cancel")}>Cancel countdown</button>
+                )}
+                {state.externalStarted && <span className="external-clock-status">{state.playing ? "Shared clock running" : "Shared clock paused"}</span>}
+              </div>
+              <div className="external-offset">
+                <span>YOUR CLOCK NUDGE</span>
+                <button aria-label="Nudge my clock earlier" onClick={() => updateLocalOffset(localOffset - 0.25)}>−</button>
+                <b>{localOffset > 0 ? "+" : ""}{localOffset.toFixed(2)}s</b>
+                <button aria-label="Nudge my clock later" onClick={() => updateLocalOffset(localOffset + 0.25)}>+</button>
+                <button className="offset-reset" onClick={() => updateLocalOffset(0)}>Reset</button>
+                <small>Only your shared clock changes, not the streaming player.</small>
+              </div>
+            </section>
+          )}
           <div className="room-notes">
             <div>
               <span>SYNC STATUS</span>

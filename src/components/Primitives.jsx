@@ -17,6 +17,7 @@ export function Icon({ name, size = 18 }) {
     expand: "M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4",
     queue: "M4 6h16M4 12h16M4 18h10",
     transfer: "M7 7h10m0 0-3-3m3 3-3 3M17 17H7m0 0 3-3m-3 3 3 3",
+    external: "M14 4h6v6m-10 4L20 4M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6",
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[name] || paths.spark} /></svg>;
 }

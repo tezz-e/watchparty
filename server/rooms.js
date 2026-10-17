@@ -7,6 +7,12 @@ const moodOrder = ["uplifting", "cozy", "energetic", "thrilling", "playful"];
 
 export const now = () => Date.now();
 
+export function settleExternalCountdown(room) {
+  if (room.externalCountdown && now() >= room.externalCountdown.startsAt) {
+    room.externalStarted = true;
+  }
+}
+
 export function makeRoom(id) {
   return {
     id,
@@ -18,6 +24,8 @@ export function makeRoom(id) {
     members: new Map(),
     messages: [],
     config: { title: "Untitled watch party", source: "", control: "host" },
+    externalStarted: false,
+    externalCountdown: null,
     playlist: [],
     poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} },
     moods: {},
@@ -31,6 +39,7 @@ export function currentPosition(room) {
 }
 
 export function roomSnapshot(room) {
+  settleExternalCountdown(room);
   const moodCounts = Object.values(room.moods).reduce((counts, mood) => {
     counts[mood] = (counts[mood] || 0) + 1;
     return counts;
@@ -46,6 +55,9 @@ export function roomSnapshot(room) {
     updatedAt: now(),
     hostId: room.hostId,
     config: room.config,
+    serverNow: now(),
+    externalStarted: room.externalStarted,
+    externalCountdown: room.externalCountdown,
     playlist: room.playlist,
     poll: room.poll,
     mood: { current: mood, counts: moodCounts, voters: Object.keys(room.moods).length },
@@ -64,7 +76,15 @@ export function roomSnapshot(room) {
 export function memberList(room) {
   return [...room.members.values()]
     .sort((a, b) => a.joinedAt - b.joinedAt)
-    .map(({ id, name, joinedAt, online, buffering }) => ({ id, name, joinedAt, online, buffering: Boolean(buffering), host: id === room.hostId }));
+    .map(({ id, name, joinedAt, online, buffering, externalReady }) => ({
+      id,
+      name,
+      joinedAt,
+      online,
+      buffering: Boolean(buffering),
+      externalReady: Boolean(externalReady),
+      host: id === room.hostId,
+    }));
 }
 
 export const onlineMembers = room => [...room.members.values()].filter(member => member.online);

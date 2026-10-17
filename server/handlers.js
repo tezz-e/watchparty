@@ -10,9 +10,11 @@ import {
   RECONNECT_GRACE_MS,
   roomSnapshot,
   rooms,
+  settleExternalCountdown,
 } from "./rooms.js";
 import { cleanText, validMediaUrl, validMemberId, validRoomId } from "./validation.js";
 import { publishPlayback } from "./telemetry.js";
+import { mediaProvider } from "../shared/media.js";
 
 const moodByEmoji = { "✨": "uplifting", "♥": "cozy", "⚡": "energetic", "👏": "thrilling", "😂": "playful" };
 
@@ -30,6 +32,7 @@ export function registerSocketHandlers(io) {
   io.on("connection", socket => {
     const joinRoom = (room, name, memberId) => {
       const roomId = room.id;
+      settleExternalCountdown(room);
       const existing = room.members.get(memberId);
       if (!existing && room.members.size >= MAX_MEMBERS) return reject(socket, "room-full", "This room is at its 20-person capacity.");
 
@@ -41,8 +44,14 @@ export function registerSocketHandlers(io) {
       member.name = cleanText(name, "Guest", 32);
       member.online = true;
       member.buffering = false;
+      member.externalReady = Boolean(member.externalReady);
       member.socketId = socket.id;
       room.members.set(memberId, member);
+      if (room.externalCountdown && !room.externalStarted) {
+        room.externalCountdown = null;
+        room.playing = false;
+        room.updatedAt = now();
+      }
       clearDisconnectTimer(roomId, memberId);
       if (!room.hostId || !room.members.get(room.hostId)?.online) electHost(room);
 
@@ -90,16 +99,25 @@ export function registerSocketHandlers(io) {
       };
       room.position = 0;
       room.playing = false;
+      room.externalStarted = false;
+      room.externalCountdown = null;
+      for (const member of room.members.values()) member.externalReady = false;
       room.updatedAt = now();
       room.version += 1;
       io.to(room.id).emit("room:config", room.config);
+      publishPresence(room);
       publishState(room);
     });
 
     socket.on("playback:update", ({ playing, position, version, sentAt } = {}) => {
       const room = roomFor(socket);
       if (!room) return;
-      if (room.config.control !== "shared" && !isHost(room, socket)) return reject(socket, "host-controls", "The host has the remote.");
+      settleExternalCountdown(room);
+      const externalRoom = mediaProvider(room.config.source) === "external";
+      if ((externalRoom || room.config.control !== "shared") && !isHost(room, socket)) return reject(socket, "host-controls", "The host has the remote.");
+      if (externalRoom && Boolean(playing) && !room.externalStarted) {
+        return reject(socket, "external-countdown-required", "Use the ready check to start a sync-only room.");
+      }
       if (!Number.isFinite(position) || position < 0 || position > 86_400) return reject(socket, "invalid-position", "That playback position is invalid.");
       if (Number.isFinite(version) && version < room.version) {
         socket.emit("room:state", roomSnapshot(room));
@@ -108,6 +126,7 @@ export function registerSocketHandlers(io) {
       room.playing = Boolean(playing);
       room.position = position;
       room.updatedAt = now();
+      if (!playing && room.externalCountdown && !room.externalStarted) room.externalCountdown = null;
       room.telemetry.commands += 1;
       room.version = Math.max(room.version + 1, Number.isFinite(version) ? version + 1 : room.version + 1);
       publishPlayback(io, room, { ...roomSnapshot(room), commandSentAt: Number.isFinite(sentAt) ? sentAt : null });
@@ -130,6 +149,65 @@ export function registerSocketHandlers(io) {
       if (member.buffering === buffering) return;
       member.buffering = buffering;
       publishPresence(room);
+    });
+
+    socket.on("external:ready", ({ ready } = {}) => {
+      const room = roomFor(socket);
+      if (room) settleExternalCountdown(room);
+      const member = room?.members.get(socket.data.memberId);
+      if (!room || !member || mediaProvider(room.config.source) !== "external" || typeof ready !== "boolean") {
+        return reject(socket, "external-ready-unavailable", "The ready check is only available in sync-only rooms.");
+      }
+      member.externalReady = ready;
+      if (!ready && room.externalCountdown && !room.externalStarted) {
+        room.externalCountdown = null;
+        room.playing = false;
+        room.updatedAt = now();
+      }
+      publishPresence(room);
+      publishState(room);
+    });
+
+    socket.on("external:countdown", () => {
+      const room = roomFor(socket);
+      if (!room || mediaProvider(room.config.source) !== "external") {
+        return reject(socket, "external-countdown-unavailable", "The countdown is only available in sync-only rooms.");
+      }
+      settleExternalCountdown(room);
+      if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can start the room countdown.");
+      if (room.externalStarted) return reject(socket, "external-already-started", "The shared clock is already running; pause or resume it with the room controls.");
+      const participants = onlineMembers(room);
+      if (!participants.length || participants.some(member => !member.externalReady)) {
+        return reject(socket, "external-not-ready", "Everyone online must mark themselves ready before the countdown.");
+      }
+      const startsAt = now() + 3000;
+      room.externalStarted = false;
+      room.externalCountdown = { startsAt };
+      room.playing = true;
+      room.position = 0;
+      room.updatedAt = startsAt;
+      room.version += 1;
+      publishState(room);
+      setTimeout(() => {
+        if (rooms.get(room.id) !== room || room.externalCountdown?.startsAt !== startsAt) return;
+        room.externalStarted = true;
+        publishState(room);
+      }, 3000);
+    });
+
+    socket.on("external:countdown-cancel", () => {
+      const room = roomFor(socket);
+      if (room) settleExternalCountdown(room);
+      if (!room || mediaProvider(room.config.source) !== "external") return;
+      if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can cancel the room countdown.");
+      if (!room.externalCountdown || room.externalCountdown.startsAt <= now()) return;
+      room.externalCountdown = null;
+      room.externalStarted = false;
+      room.playing = false;
+      room.position = 0;
+      room.updatedAt = now();
+      room.version += 1;
+      publishState(room);
     });
 
     socket.on("media:failure", ({ code } = {}) => {
@@ -177,9 +255,13 @@ export function registerSocketHandlers(io) {
       room.config = { ...room.config, title: item.title, source: item.source };
       room.position = 0;
       room.playing = false;
+      room.externalStarted = false;
+      room.externalCountdown = null;
+      for (const member of room.members.values()) member.externalReady = false;
       room.updatedAt = now();
       room.version += 1;
       io.to(room.id).emit("room:config", room.config);
+      publishPresence(room);
       publishState(room);
     });
 
@@ -228,11 +310,20 @@ export function registerSocketHandlers(io) {
     socket.on("disconnect", () => {
       const room = roomFor(socket);
       if (!room) return;
+      settleExternalCountdown(room);
       const member = room.members.get(socket.data.memberId);
       if (!member || member.socketId !== socket.id) return;
       member.online = false;
       member.socketId = null;
+      member.externalReady = false;
+      const cancelledCountdown = Boolean(room.externalCountdown && !room.externalStarted);
+      if (cancelledCountdown) {
+        room.externalCountdown = null;
+        room.playing = false;
+        room.updatedAt = now();
+      }
       publishPresence(room);
+      if (cancelledCountdown) publishState(room);
       const key = `${room.id}:${member.id}`;
       clearDisconnectTimer(room.id, member.id);
       disconnectTimers.set(key, setTimeout(() => {

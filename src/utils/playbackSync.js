@@ -43,3 +43,6 @@ export function correctionZone(drift, { supportsPlaybackRate = true, seekThresho
   if (absoluteDrift <= 0.5) return "rate";
   return "seek";
 }
+
+export const clampLocalClockOffset = offset => Math.max(-15, Math.min(15, Math.round(offset * 4) / 4));
+export const applyLocalClockOffset = (position, offset) => Math.max(0, position + offset);

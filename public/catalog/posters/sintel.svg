@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520">
+  <defs><linearGradient id="a" x2="1" y2="1"><stop stop-color="#ae633f"/><stop offset=".55" stop-color="#3c3034"/><stop offset="1" stop-color="#111518"/></linearGradient><radialGradient id="b"><stop stop-color="#ffc17a" stop-opacity=".75"/><stop offset="1" stop-color="#ffc17a" stop-opacity="0"/></radialGradient></defs>
+  <path fill="url(#a)" d="M0 0h360v520H0z"/><circle cx="261" cy="158" r="130" fill="url(#b)"/><path d="M0 346 109 204l67 93 69-112 115 155v180H0z" fill="#14191a"/><path d="M132 353c31-56 64-84 98-82 16 1 31 10 43 27-32 2-51 19-55 51z" fill="#d99768"/><text x="29" y="460" fill="#fff" font-family="sans-serif" font-size="29" letter-spacing="8">SINTEL</text><text x="31" y="487" fill="#f4c8a8" font-family="sans-serif" font-size="10" letter-spacing="4">A BLENDER OPEN MOVIE</text>
+</svg>

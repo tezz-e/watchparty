@@ -9,7 +9,7 @@ import { io } from "socket.io-client";
 import { fileURLToPath } from "node:url";
 
 const serverFile = fileURLToPath(new URL("../server.js", import.meta.url));
-const sampleUrl = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+const sampleUrl = "https://media.example/approved-test.mp4";
 const sockets = new Set();
 let child;
 let baseUrl;
@@ -360,6 +360,77 @@ test("stale concurrent playback commands are rejected and shared mood recommenda
   assert.equal(secondMood.current, "cozy");
   assert.equal(secondMood.voters, 1);
   assert.deepEqual(secondMood.counts, { cozy: 1 });
+});
+
+test("sync-only rooms require a ready check, use a host countdown, and keep the clock host-controlled", async () => {
+  const host = await connect("sync-only-host-0001");
+  const { roomId } = await createRoom(host, {
+    source: "https://www.netflix.com/title/80057281",
+    control: "shared",
+  });
+  const viewer = await connect("sync-only-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  const immediateStartError = eventOnce(host.socket, "room:error");
+  host.socket.emit("playback:update", { playing: true, position: 0, version: 0 });
+  assert.equal((await immediateStartError)[0].code, "external-countdown-required");
+
+  const readyError = eventOnce(host.socket, "room:error");
+  host.socket.emit("external:countdown");
+  assert.equal((await readyError)[0].code, "external-not-ready");
+
+  const hostReady = eventOnce(host.socket, "room:presence", members => members.some(member => member.id === host.memberId && member.externalReady));
+  host.socket.emit("external:ready", { ready: true });
+  assert.ok((await hostReady)[0].some(member => member.id === host.memberId && member.externalReady));
+  const viewerReady = eventOnce(host.socket, "room:presence", members => members.some(member => member.id === viewer.memberId && member.externalReady));
+  viewer.socket.emit("external:ready", { ready: true });
+  assert.ok((await viewerReady)[0].some(member => member.id === viewer.memberId && member.externalReady));
+
+  const countdown = eventOnce(host.socket, "room:state", state => Boolean(state.externalCountdown));
+  host.socket.emit("external:countdown");
+  const [scheduled] = await countdown;
+  assert.equal(scheduled.externalStarted, false);
+  assert.equal(scheduled.playing, true);
+  assert.ok(scheduled.externalCountdown.startsAt >= Date.now() + 2_500);
+
+  const viewerHostError = eventOnce(viewer.socket, "room:error");
+  viewer.socket.emit("external:countdown");
+  assert.equal((await viewerHostError)[0].code, "host-only");
+
+  const started = eventOnce(host.socket, "room:state", state => state.externalStarted, 4_000);
+  const [running] = await started;
+  assert.equal(running.playing, true);
+
+  const pause = eventOnce(host.socket, "playback:state", state => !state.playing);
+  host.socket.emit("playback:update", { playing: false, position: 4, version: running.version });
+  const [paused] = await pause;
+  const resume = eventOnce(host.socket, "playback:state", state => state.playing);
+  host.socket.emit("playback:update", { playing: true, position: paused.position, version: paused.version });
+  assert.equal((await resume)[0].playing, true);
+
+  const viewerControlError = eventOnce(viewer.socket, "room:error");
+  viewer.socket.emit("playback:update", { playing: false, position: 0, version: running.version });
+  assert.equal((await viewerControlError)[0].code, "host-controls");
+});
+
+test("a new sync-only participant cancels a pending countdown and must rejoin the ready check", async () => {
+  const host = await connect("countdown-host-0001");
+  const { roomId } = await createRoom(host, { source: "https://www.netflix.com/title/80057281" });
+  const viewer = await connect("countdown-viewer-0001");
+  await joinRoom(viewer, roomId);
+  host.socket.emit("external:ready", { ready: true });
+  viewer.socket.emit("external:ready", { ready: true });
+  await new Promise(resolve => setTimeout(resolve, 30));
+
+  const countdown = eventOnce(host.socket, "room:state", state => Boolean(state.externalCountdown));
+  host.socket.emit("external:countdown");
+  await countdown;
+
+  const lateViewer = await connect("countdown-late-0001");
+  const lateState = await joinRoom(lateViewer, roomId);
+  assert.equal(lateState.externalCountdown, null);
+  assert.equal(lateState.externalStarted, false);
+  assert.equal(lateState.playing, false);
 });
 
 test("room capacity counts reconnect-grace members toward twenty", async () => {

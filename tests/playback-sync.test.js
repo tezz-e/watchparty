@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { correctionZone, createClockOffsetEstimator, estimateClockOffset } from "../src/utils/playbackSync.js";
+import { applyLocalClockOffset, clampLocalClockOffset, correctionZone, createClockOffsetEstimator, estimateClockOffset } from "../src/utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../src/player/htmlVideoPlayer.js";
 import { desiredPosition } from "../src/utils/watchParty.js";
 
@@ -54,6 +54,14 @@ test("players without playback-rate support stay steady inside tolerance and see
 
 test("desired playback position uses the estimated server clock offset", () => {
   assert.equal(desiredPosition({ playing: true, position: 5, updatedAt: 1000 }, 1100, 200), 5.3);
+});
+
+test("sync-only local clock nudges are quarter-second steps bounded to fifteen seconds", () => {
+  assert.equal(clampLocalClockOffset(2.12), 2);
+  assert.equal(clampLocalClockOffset(18), 15);
+  assert.equal(clampLocalClockOffset(-18), -15);
+  assert.equal(applyLocalClockOffset(12, -2.5), 9.5);
+  assert.equal(applyLocalClockOffset(1, -2), 0);
 });
 
 test("HTML video player adapter exposes playback controls", async () => {

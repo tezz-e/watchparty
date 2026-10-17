@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { catalog, demoSource, isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl } from "../data/catalog.js";
-import { fuzzyMatch, roomId } from "../utils/watchParty.js";
+import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl } from "../data/catalog.js";
+import { catalog, catalogAvailability, catalogCategories, catalogGenres, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
+import { roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
 import { Avatar, Icon, SoftField, Wordmark } from "./Primitives.jsx";
 
@@ -56,7 +57,7 @@ export function Lobby({ profile, onCreate, onJoin }) {
   );
 }
 
-export function Discovery({ query, setQuery, category, setCategory, onSelect, action = "Add to queue" }) {
+function useLocalLibrary() {
   const [localItems, setLocalItems] = useState([]);
   const [libraryError, setLibraryError] = useState("");
 
@@ -80,27 +81,64 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, ac
     return () => controller.abort();
   }, []);
 
-  const availableItems = [...localItems, ...catalog];
-  const categories = ["All", ...new Set(availableItems.map(item => item.category))];
-  const picks = availableItems.filter(item => (category === "All" || item.category === category) && fuzzyMatch(`${item.title} ${item.category}`, query));
+  return { localItems, libraryError };
+}
+
+export function Discovery({ query, setQuery, category, setCategory, onSelect, onSyncOnly, action = "Add to queue" }) {
+  const { localItems, libraryError } = useLocalLibrary();
+  const [genre, setGenre] = useState("All");
+  const [sort, setSort] = useState("title");
+  const [syncService, setSyncService] = useState(syncServices[0]);
+  const localFilenames = new Set(localItems.map(item => decodeURIComponent(item.source.split("/").pop())));
+  const catalogItems = catalog.map(item => ({
+    ...item,
+    available: localFilenames.has(item.filename),
+    source: `${serverUrl}/media/${encodeURIComponent(item.filename)}`,
+    availability: catalogAvailability(item, localFilenames),
+    note: `${item.year}${item.rating === null ? "" : ` · ${item.rating.toFixed(1)}/10`} · ${item.genres.join(", ")}`,
+  }));
+  const catalogFileNames = new Set(catalog.map(item => item.filename));
+  const extraLibraryItems = localItems
+    .filter(item => !catalogFileNames.has(decodeURIComponent(item.source.split("/").pop())))
+    .map(item => ({ ...item, available: true, availability: ["Available in this room's local library"] }));
+  const availableItems = [...catalogItems, ...extraLibraryItems];
+  const categories = ["All", ...new Set([...catalogCategories(), ...extraLibraryItems.map(item => item.category)])];
+  const genres = ["All", ...new Set([...catalogGenres(), ...extraLibraryItems.flatMap(item => item.genres || [])])];
+  const picks = searchCatalog(availableItems, { query, category, genre, sort });
 
   return (
     <section className="discovery">
-      <div className="discovery-head"><div><span className="eyebrow"><span/>OPEN MEDIA LIBRARY</span><h3>Choose a test-ready title.</h3></div><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Fuzzy search titles"/></div>
+      <div className="discovery-head"><div><span className="eyebrow"><span/>OFFLINE-FIRST DISCOVERY</span><h3>Find the room’s next story.</h3></div><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search titles, genres, typos"/></div>
       <div className="category-row">{categories.map(item => <button type="button" key={item} onClick={() => setCategory(item)} className={category === item ? "active" : ""}>{item}</button>)}</div>
+      <div className="discovery-filters">
+        <label>GENRE<select value={genre} onChange={event => setGenre(event.target.value)}>{genres.map(item => <option key={item}>{item}</option>)}</select></label>
+        <label>SORT<select value={sort} onChange={event => setSort(event.target.value)}><option value="title">Title A–Z</option><option value="year">Newest first</option><option value="rating">Rating</option></select></label>
+        {onSyncOnly && <label>SYNC SERVICE<select value={syncService} onChange={event => setSyncService(event.target.value)}>{syncServices.map(item => <option key={item}>{item}</option>)}</select></label>}
+      </div>
       <div className="catalog-grid">
-        {picks.map(item => <button type="button" className={`catalog-card ${item.tone}`} key={item.id} onClick={() => onSelect(item)} aria-label={`${action}: ${item.title}`}><span className="catalog-art"><span>{item.category}</span><b>{item.duration}</b></span><span className="catalog-info"><small>{item.note}</small><strong>{item.title}</strong><span className="catalog-select"><Icon name="plus" size={14}/>{action}</span></span></button>)}
+        {picks.map(item => {
+          const syncLink = externalPlatformUrl(syncService);
+          return (
+            <article className="catalog-entry" key={item.id}>
+              <button type="button" className={`catalog-card ${item.tone}`} onClick={() => onSelect(item)} disabled={!item.available} aria-label={item.available ? `${action}: ${item.title}` : `${item.title}: add the licensed file to media`}>
+                <span className="catalog-art"><img src={item.poster || "/catalog/posters/big-buck-bunny.svg"} alt="" loading="lazy"/><span>{item.category}</span><b>{item.year || item.duration}</b></span>
+                <span className="catalog-info"><small>{item.note}</small><strong>{item.title}</strong><span className="catalog-overview">{item.overview}</span><span className={item.available ? "catalog-availability available" : "catalog-availability"}>{item.availability?.join(" · ")}</span><span className="catalog-select">{item.available ? <><Icon name="plus" size={14}/>{action}</> : "Licensed file not installed"}</span></span>
+              </button>
+              {onSyncOnly && syncLink && <div className="catalog-service-actions"><button type="button" onClick={() => onSyncOnly(item, { name: syncService })}><Icon name="external" size={12}/>Start sync-only with {syncService}</button></div>}
+            </article>
+          );
+        })}
         {libraryError && <p className="catalog-empty">{libraryError}</p>}
-        {!localItems.length && !libraryError && <p className="catalog-empty">Add authorized MP4 or WebM files to the server’s media/ folder to list them here.</p>}
         {!picks.length && <p className="catalog-empty">No close matches. Try another title or category.</p>}
       </div>
+      <p className="catalog-attribution">Offline catalog snapshot. This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data by JustWatch. Service links open the provider home page, not a guaranteed title deep link.</p>
     </section>
   );
 }
 
 export function CreateRoom({ onClose, onEnter }) {
   const [title, setTitle] = useState("Friday, but make it quiet");
-  const [source, setSource] = useState(demoSource);
+  const [source, setSource] = useState("");
   const [control, setControl] = useState("host");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
@@ -117,13 +155,24 @@ export function CreateRoom({ onClose, onEnter }) {
         <button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button>
         <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>
         <label className="field-label">ROOM NAME<input value={title} onChange={event => setTitle(event.target.value)} maxLength="56"/></label>
-        <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video or streaming-service URL" aria-invalid={!validSource}/></label>
-        {!validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, or a recognized streaming-service link.</p>}
+        <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video or streaming-service URL" aria-invalid={Boolean(source) && !validSource}/></label>
+        {source && !validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, or a recognized streaming-service link.</p>}
         {mixedContent && <p className="source-error">This HTTPS page cannot play an insecure HTTP stream. Use an HTTPS media URL.</p>}
         {provider === "youtube" && <p className="source-note">YouTube’s official embed player will be used. Some videos cannot be embedded by their owner.</p>}
         {provider === "hls" && !mixedContent && <p className="source-note">HLS plays through the browser’s native player or hls.js. The media host must allow cross-origin requests from this site.</p>}
         {provider === "external" && <p className="source-note">This is a sync-only room for {platform.name}. Everyone opens the link in their own account; Afterglow cannot control that site’s player.</p>}
-        <Discovery query={query} setQuery={setQuery} category={category} setCategory={setCategory} action="Use this" onSelect={item => { setTitle(item.title); setSource(item.source); }}/>
+        <Discovery
+          query={query}
+          setQuery={setQuery}
+          category={category}
+          setCategory={setCategory}
+          action="Use this"
+          onSelect={item => { setTitle(item.title); setSource(item.source); }}
+          onSyncOnly={(item, service) => {
+            const deepLink = externalPlatformUrl(service.name);
+            if (deepLink) onEnter({ id: roomId(), title: item.title, source: deepLink, control: "host", kind: "external", create: true });
+          }}
+        />
         <fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control === "host" ? "chosen" : ""} onClick={() => setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control === "shared" ? "chosen" : ""} onClick={() => setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset>
         <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : "Create the room"} <Icon name="arrow"/></button>
       </form>
@@ -134,14 +183,31 @@ export function CreateRoom({ onClose, onEnter }) {
 export function Queue({ playlist, isHost, onPlay, onRemove, onAdd, mood }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const recommendations = mood?.current ? catalog.filter(item => item.moods.includes(mood.current) && !playlist.some(queued => queued.source === item.source)).slice(0, 2) : [];
+  const { localItems } = useLocalLibrary();
+  const availableFiles = new Set(localItems.map(item => decodeURIComponent(item.source.split("/").pop())));
+  const recommendations = mood?.current
+    ? catalog.filter(item => item.moods.includes(mood.current) && availableFiles.has(item.filename))
+      .map(item => ({ ...item, source: `${serverUrl}/media/${encodeURIComponent(item.filename)}` }))
+      .filter(item => !playlist.some(queued => queued.source === item.source))
+      .slice(0, 2)
+    : [];
 
   return (
     <div className="queue-pane">
       <div className="drawer-head"><span className="eyebrow"><span/>SHARED PLAYLIST</span><h3>{playlist.length ? `${playlist.length} picks on deck.` : "Add the next thing."}</h3></div>
       {mood?.current && <section className="mood-signal"><span className="eyebrow"><span/>ROOM MOOD · {mood.voters} SIGNAL{mood.voters === 1 ? "" : "S"}</span><b>The room feels {mood.current}.</b><small>Reactions are turning into shared picks.</small>{recommendations.map(item => <button key={item.id} onClick={() => onAdd(item)}>{item.title}<Icon name="plus" size={13}/></button>)}</section>}
       <div className="queue-list">{playlist.map(item => <article key={item.id}><div><small>{item.category} · {item.duration}</small><b>{item.title}</b></div>{isHost && <span><button onClick={() => onPlay(item.id)} title="Play this item"><Icon name="play" size={14}/></button><button onClick={() => onRemove(item.id)} title="Remove"><Icon name="close" size={14}/></button></span>}</article>)}</div>
-      <Discovery query={query} setQuery={setQuery} category={category} setCategory={setCategory} onSelect={onAdd}/>
+      <Discovery
+        query={query}
+        setQuery={setQuery}
+        category={category}
+        setCategory={setCategory}
+        onSelect={onAdd}
+        onSyncOnly={(item, service) => {
+          const deepLink = externalPlatformUrl(service.name);
+          if (deepLink) onAdd({ ...item, source: deepLink, category: item.category });
+        }}
+      />
     </div>
   );
 }

@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520">
+  <defs><linearGradient id="a" x2="0" y2="1"><stop stop-color="#267080"/><stop offset="1" stop-color="#10171a"/></linearGradient></defs>
+  <path fill="url(#a)" d="M0 0h360v520H0z"/><circle cx="284" cy="118" r="82" fill="#b5e2e7" opacity=".4"/><path d="m0 350 43-72 40 36 45-120 44 101 61-148 127 205v168H0z" fill="#122124"/><path d="M0 383h360v137H0z" fill="#101518" opacity=".8"/><text x="28" y="443" fill="#fff" font-family="sans-serif" font-size="22" letter-spacing="3">TEARS OF</text><text x="28" y="476" fill="#9ddbe1" font-family="sans-serif" font-size="28" letter-spacing="5">STEEL</text>
+</svg>

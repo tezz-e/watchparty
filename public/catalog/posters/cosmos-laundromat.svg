@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520">
+  <defs><linearGradient id="a" x2="1" y2="1"><stop stop-color="#515594"/><stop offset="1" stop-color="#171b30"/></linearGradient><radialGradient id="b"><stop stop-color="#c8e2ff" stop-opacity=".9"/><stop offset="1" stop-color="#c8e2ff" stop-opacity="0"/></radialGradient></defs>
+  <path fill="url(#a)" d="M0 0h360v520H0z"/><circle cx="249" cy="176" r="141" fill="url(#b)"/><circle cx="65" cy="85" r="3" fill="#fff"/><circle cx="104" cy="139" r="2" fill="#fff"/><circle cx="311" cy="69" r="3" fill="#fff"/><path d="M0 374 95 294l63 52 74-102 128 139v137H0z" fill="#151a26"/><text x="27" y="438" fill="#fff" font-family="sans-serif" font-size="21" letter-spacing="3">COSMOS</text><text x="27" y="471" fill="#d5d7ff" font-family="sans-serif" font-size="21" letter-spacing="3">LAUNDROMAT</text>
+</svg>

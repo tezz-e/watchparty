@@ -9,16 +9,27 @@ export function createMemberId() {
 }
 
 export function fuzzyMatch(text, query) {
-  const needle = query.toLowerCase().replace(/\s/g, "");
+  const needle = query.toLowerCase().trim().replace(/\s+/g, " ");
   if (!needle) return true;
-  const haystack = text.toLowerCase();
-  let offset = 0;
-  for (const char of needle) {
-    offset = haystack.indexOf(char, offset);
-    if (offset < 0) return false;
-    offset += 1;
-  }
-  return true;
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const queryWords = needle.split(/[^a-z0-9]+/).filter(Boolean);
+  return queryWords.every(queryWord => words.some(word => {
+    if (word.includes(queryWord) || queryWord.includes(word)) return true;
+    if (Math.abs(word.length - queryWord.length) > 1) return false;
+    let previous = Array.from({ length: word.length + 1 }, (_, index) => index);
+    for (let row = 1; row <= queryWord.length; row += 1) {
+      const current = [row];
+      for (let column = 1; column <= word.length; column += 1) {
+        current[column] = Math.min(
+          current[column - 1] + 1,
+          previous[column] + 1,
+          previous[column - 1] + (queryWord[row - 1] === word[column - 1] ? 0 : 1),
+        );
+      }
+      previous = current;
+    }
+    return previous[word.length] <= (queryWord.length < 5 ? 1 : 2);
+  }));
 }
 
 export const roomId = () => `room-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36).slice(0, 6)}`;

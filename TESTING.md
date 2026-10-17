@@ -20,6 +20,7 @@ The integration suite starts an isolated server on an available local port and c
 
 | Scenario | Verification |
 | --- | --- |
+| Offline catalog | Curated local JSON and poster artwork load without TMDB; typo-tolerant search, category/genre filters, sorting, local availability, and service search links are covered by `tests/local-catalog.test.js`. |
 | Room lifecycle | Creating a room is distinct from joining one; unknown and duplicate room IDs are rejected. |
 | Media rules | Direct HTTP(S) `.mp4`/`.webm`/`.m3u8` URLs, supported YouTube links, and configured streaming-platform links are accepted; unrelated pages and deceptive domains are rejected. |
 | Ten-client sync | Ten connected clients receive the same accepted playback state. |
@@ -28,6 +29,8 @@ The integration suite starts an isolated server on an available local port and c
 | Reconnect and host | Rejoining within the grace window retains host identity; expiry promotes the next online participant. |
 | Queue and host control | Invalid picks are rejected, queue picks update the shared media, and stale concurrent commands do not overwrite newer state. |
 | Mood signal | One latest reaction per member contributes to the room mood, which changes when that member changes reaction. |
+| Sync-only ready check | Room readiness is tracked per online member; only the host can start the three-second countdown, late joins cancel it, and the host alone can pause/resume the shared clock. |
+| Personal clock nudge | Local sync-only offsets are limited to ±15 seconds in quarter-second increments and do not change server room state. |
 | Local media library | `/api/library` lists top-level MP4/WebM files in `media/`; `/media/:filename` serves byte ranges. |
 | Delivery percentiles | `/metrics/latency` reports server-observed delivery p50/p95/p99, cumulative samples/timeouts, and the current sample-window size. |
 
@@ -38,6 +41,17 @@ YouTube sources use the official IFrame Player API in each participant's browser
 HLS `.m3u8` URLs are played with the browser's native HLS support when available (Safari), otherwise with hls.js. The stream host must allow cross-origin requests for its manifest and segments; fatal network/CORS and decode errors are reported in the room. HTTP HLS media is blocked when the app is served over HTTPS, with a prompt to use HTTPS. Pasting a recognized streaming-platform URL (configured in `shared/streamingPlatforms.js`) offers a sync-only room that opens the deep link for each participant; it does not embed, inspect, or control that site's player. The fuller ready-check and countdown flow is a later milestone.
 
 Place authorized `.mp4` or `.webm` files in `media/`; the directory listing appears in discovery and supports byte-range seeking. Files in that directory are ignored by Git. Delivery metrics are retained in a bounded 10,000-sample window while the sample and timeout counters remain cumulative for the server process.
+
+The local discovery snapshot and poster art are stored in `src/data/catalog.json` and `public/catalog/posters/`; discovery does not call TMDB at runtime. A card becomes playable when the matching authorized file exists in `media/`. The optional `npm.cmd run seed:catalog` command requires `TMDB_READ_ACCESS_TOKEN` in the server environment and writes a dated, region-specific snapshot. It was not run for this verification. The current TMDB terms endpoint could not be reached here; review current terms and JustWatch attribution before seeding. Never move the token into a `VITE_` variable.
+
+Before adding a media URL to a manifest or downloading a film, verify it with:
+
+```powershell
+npm.cmd run check:media-links -- <verified-https-url>
+npm.cmd run fetch:media -- <verified-https-url> <filename.mp4>
+```
+
+Both scripts reject unverified content for this app's use; the checker requires a `206` response with a byte-range `Content-Range`, and the downloader verifies that before writing to the git-ignored `media/` directory. No third-party movie URL was added to the fallback catalog.
 
 Start the server in one PowerShell window and run the configurable Socket.IO load test in another:
 

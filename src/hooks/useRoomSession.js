@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { createMemberId, desiredPosition } from "../utils/watchParty.js";
-import { correctionZone, createClockOffsetEstimator } from "../utils/playbackSync.js";
+import { applyLocalClockOffset, clampLocalClockOffset, correctionZone, createClockOffsetEstimator } from "../utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../player/htmlVideoPlayer.js";
 import { createYoutubePlayer, youtubeErrorMessage } from "../player/youtubePlayer.js";
 import { createHlsPlayer, hlsErrorMessage, mediaErrorMessage } from "../player/hlsPlayer.js";
@@ -10,16 +10,28 @@ import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
-  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState("");
-  const socket = useRef(null), video = useRef(null), youtube = useRef(null), player = useRef(null), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
+  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState(""), [localOffset, setLocalOffsetState] = useState(0), [externalReady, setExternalReady] = useState(false);
+  const socket = useRef(null), video = useRef(null), youtube = useRef(null), player = useRef(null), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), localOffsetRef = useRef(localOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
   stateRef.current = state;
   clockOffsetRef.current = clockOffset;
-  const hasRemote = state.config?.control === "shared" || state.hostId === selfId;
+  localOffsetRef.current = localOffset;
   const config = state.config || room;
+  const provider = mediaProvider(config.source);
+  const hasRemote = provider === "external"
+    ? state.hostId === selfId
+    : state.config?.control === "shared" || state.hostId === selfId;
   const applyState = next => setState(previous => ({ ...previous, ...next, config: next.config ? { ...previous.config, ...next.config } : previous.config, playlist: next.playlist || previous.playlist, poll: next.poll || previous.poll }));
   const getPlayer = () => player.current;
-  const getDesiredPosition = playbackState => desiredPosition(playbackState || state, Date.now(), clockOffsetRef.current);
-  const provider = mediaProvider(config.source);
+  const getDesiredPosition = playbackState => {
+    const desired = getCanonicalPosition(playbackState);
+    return provider === "external" ? applyLocalClockOffset(desired, localOffsetRef.current) : desired;
+  };
+  const getCanonicalPosition = playbackState => desiredPosition(playbackState || state, Date.now(), clockOffsetRef.current);
+  const updateLocalOffset = offset => {
+    const nextOffset = clampLocalClockOffset(offset);
+    localOffsetRef.current = nextOffset;
+    setLocalOffsetState(nextOffset);
+  };
   const reportBuffering = buffering => {
     if (bufferingRef.current === buffering) return;
     bufferingRef.current = buffering;
@@ -37,12 +49,15 @@ export function useRoomSession(profile, room) {
         client.emit("room:create", { ...identity, title: room.title, source: room.source, control: room.control });
       } else client.emit("room:join", identity);
     };
-    client.on("connect", join); client.on("disconnect", () => setConnected(false));
+    client.on("connect", join); client.on("disconnect", () => { setConnected(false); setExternalReady(false); });
     client.on("room:joined", ({ selfId: id, state: serverState, messages: history }) => { createOnNextConnect.current = false; setSelfId(id); setMessages(history); applyState(serverState); });
     client.on("room:state", applyState);
     client.on("playback:state", (next, acknowledge) => { applyState(next); if (typeof acknowledge === "function") acknowledge(); });
     client.on("room:config", configUpdate => setState(previous => ({ ...previous, config: { ...previous.config, ...configUpdate } })));
-    client.on("room:presence", setMembers); client.on("playlist:state", playlist => setState(previous => ({ ...previous, playlist })));
+    client.on("room:presence", nextMembers => {
+      setMembers(nextMembers);
+      setExternalReady(Boolean(nextMembers.find(member => member.id === memberId.current)?.externalReady));
+    }); client.on("playlist:state", playlist => setState(previous => ({ ...previous, playlist })));
     client.on("chat:message", message => setMessages(previous => [...previous, message])); client.on("reaction", ({ emoji }) => setReaction(emoji)); client.on("poll:update", poll => setState(previous => ({ ...previous, poll })));
     client.on("mood:update", mood => setState(previous => ({ ...previous, mood })));
     client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
@@ -165,7 +180,10 @@ export function useRoomSession(profile, room) {
       const result = getPlayer()?.play();
       result?.catch?.(() => setNotice("Tap play once to allow this browser to start media."));
     }
-    sendPlayback(playing, getPlayer()?.currentTime() || getDesiredPosition(stateRef.current));
+    const position = provider === "external"
+      ? getCanonicalPosition(stateRef.current)
+      : getPlayer()?.currentTime() || getDesiredPosition(stateRef.current);
+    sendPlayback(playing, position);
   };
   const onTime = () => {
     const timestamp = Date.now();
@@ -186,5 +204,5 @@ export function useRoomSession(profile, room) {
   }, [provider, config.source, hasRemote]);
   const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share };
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
 }

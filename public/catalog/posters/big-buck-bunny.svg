@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520">
+  <defs><linearGradient id="a" x2="0" y2="1"><stop stop-color="#e7ae54"/><stop offset="1" stop-color="#25381e"/></linearGradient></defs>
+  <path fill="url(#a)" d="M0 0h360v520H0z"/><circle cx="280" cy="105" r="73" fill="#ffe6a3" opacity=".8"/><path d="M0 330 88 245l57 52 72-98 143 138v183H0z" fill="#284027"/><ellipse cx="174" cy="321" rx="83" ry="62" fill="#eee6d5"/><ellipse cx="134" cy="220" rx="19" ry="72" transform="rotate(-14 134 220)" fill="#eee6d5"/><ellipse cx="185" cy="211" rx="19" ry="76" transform="rotate(9 185 211)" fill="#eee6d5"/><text x="27" y="456" fill="#fff" font-family="sans-serif" font-size="24" letter-spacing="3">BIG BUCK</text><text x="27" y="486" fill="#f8e5ad" font-family="sans-serif" font-size="16" letter-spacing="7">BUNNY</text>
+</svg>

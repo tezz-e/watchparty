@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520">
+  <defs><linearGradient id="a" x2="1" y2="1"><stop stop-color="#bb6845"/><stop offset="1" stop-color="#392e3c"/></linearGradient></defs>
+  <path fill="url(#a)" d="M0 0h360v520H0z"/><path d="M0 335 54 264l68 67 74-161 47 101 48-73 69 124v198H0z" fill="#252832"/><circle cx="242" cy="133" r="58" fill="#f1c28c" opacity=".72"/><path d="M105 309h157v35H105z" fill="#eee1c7" opacity=".8"/><text x="28" y="434" fill="#fff" font-family="sans-serif" font-size="21" letter-spacing="4">AGENT 327</text><text x="29" y="469" fill="#f5c79b" font-family="sans-serif" font-size="13" letter-spacing="3">OPERATION BARBERSHOP</text>
+</svg>
