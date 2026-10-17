@@ -1,97 +1,100 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 220" width="100%" height="220" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 180" width="100%" height="180" fill="none">
   <defs>
-    <!-- Background Card Gradient -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0c0e12" />
-      <stop offset="50%" stop-color="#07090b" />
-      <stop offset="100%" stop-color="#040506" />
+    <!-- Background Gradient matching .soft-field and .lobby-instrument -->
+    <linearGradient id="panelBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111612" />
+      <stop offset="100%" stop-color="#0b0e0c" />
     </linearGradient>
 
-    <!-- Glowing Accent Gradient: Amber to Moss to Cyan -->
-    <linearGradient id="brandAura" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.85" />
-      <stop offset="50%" stop-color="#10b981" stop-opacity="0.85" />
-      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.85" />
-    </linearGradient>
+    <!-- Phosphor LED Glow Filter -->
+    <filter id="phosphorGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.78  0 0 0 0 1  0 0 0 0 0.46  0 0 0 0.55 0" />
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
 
-    <!-- Icon Core Gradient -->
-    <linearGradient id="iconGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fbbf24" />
-      <stop offset="50%" stop-color="#34d399" />
-      <stop offset="100%" stop-color="#38bdf8" />
-    </linearGradient>
-
-    <radialGradient id="radialFlare" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.25" />
-      <stop offset="70%" stop-color="#10b981" stop-opacity="0.08" />
+    <radialGradient id="ambientAura" cx="24%" cy="50%" r="45%">
+      <stop offset="0%" stop-color="#c8ff76" stop-opacity="0.08" />
+      <stop offset="60%" stop-color="#c8ff76" stop-opacity="0.015" />
       <stop offset="100%" stop-color="#000000" stop-opacity="0" />
     </radialGradient>
-
-    <filter id="glowBlur" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="12" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
   </defs>
 
-  <!-- Ambient Backdrop -->
-  <rect width="880" height="220" rx="16" fill="url(#bgGrad)" stroke="#22272e" stroke-width="1.5" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=DM+Sans:opsz,wght@9..40,500;9..40,600&amp;display=swap');
+    .brand-wordmark {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 44px;
+      font-weight: 600;
+      letter-spacing: -1.2px;
+      fill: #eff2eb;
+    }
+    .eyebrow-text {
+      font-family: 'DM Mono', Consolas, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2.2px;
+      fill: #9a9f95;
+    }
+    .tech-subtext {
+      font-family: 'DM Mono', Consolas, monospace;
+      font-size: 9.5px;
+      letter-spacing: 1.2px;
+      fill: #6d756a;
+    }
+  </style>
 
-  <!-- Ambient Light Orb behind mark -->
-  <circle cx="120" cy="110" r="90" fill="url(#radialFlare)" filter="url(#glowBlur)" />
+  <!-- Ambient Backdrop with Glass Border -->
+  <rect width="840" height="180" rx="12" fill="url(#panelBg)" stroke="#283228" stroke-width="1" />
 
-  <!-- Grid Tech Lines -->
-  <g stroke="#ffffff" stroke-opacity="0.04" stroke-width="1">
-    <line x1="40" y1="40" x2="840" y2="40" />
-    <line x1="40" y1="180" x2="840" y2="180" />
-    <line x1="220" y1="20" x2="220" y2="200" />
+  <!-- Subtle Ambient Glow -->
+  <rect width="840" height="180" rx="12" fill="url(#ambientAura)" />
+
+  <!-- Technical Grid Lines (Subtle .soft-field grid) -->
+  <g stroke="#dfefda" stroke-opacity="0.03" stroke-width="1">
+    <line x1="0" y1="45" x2="840" y2="45" />
+    <line x1="0" y1="135" x2="840" y2="135" />
+    <line x1="180" y1="0" x2="180" y2="180" />
+    <line x1="700" y1="0" x2="700" y2="180" />
   </g>
 
-  <!-- LOGO EMBLEM: Precision Cinematic Aperture & Sync Waves -->
-  <g transform="translate(120, 110)">
-    <!-- Outer Sync Wave Ring -->
-    <circle cx="0" cy="0" r="48" stroke="url(#brandAura)" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6" />
-    
-    <!-- Mid Concentric Ring -->
-    <circle cx="0" cy="0" r="36" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1" />
-    
-    <!-- Waveform Equalizer Bars (Tactile Haptic Core) -->
-    <rect x="-24" y="-18" width="6" height="36" rx="3" fill="#f59e0b" />
-    <rect x="-14" y="-28" width="6" height="56" rx="3" fill="#fbbf24" />
-    <rect x="-4"  y="-38" width="8" height="76" rx="4" fill="#34d399" filter="url(#glowBlur)" />
-    <rect x="-4"  y="-38" width="8" height="76" rx="4" fill="#10b981" />
-    <rect x="8"   y="-28" width="6" height="56" rx="3" fill="#38bdf8" />
-    <rect x="18"  y="-18" width="6" height="36" rx="3" fill="#60a5fa" />
+  <!-- BRAND SIGNAL LOGO: 3 vertical phosphor bars matching the website -->
+  <g transform="translate(68, 90)">
+    <!-- Ambient glow bloom behind signal bars -->
+    <ellipse cx="20" cy="0" rx="36" ry="32" fill="#c8ff76" opacity="0.12" filter="url(#phosphorGlow)" />
 
-    <!-- Pulse Node Satellite -->
-    <circle cx="38" cy="-28" r="4" fill="#f59e0b" />
-    <circle cx="-38" cy="28" r="3" fill="#38bdf8" />
+    <!-- Bar 1 (Left - shorter: height 24) -->
+    <rect x="0" y="-12" width="10" height="24" rx="2.5" fill="#c8ff76" filter="url(#phosphorGlow)" />
+
+    <!-- Bar 2 (Middle - tallest: height 48) -->
+    <rect x="15" y="-24" width="10" height="48" rx="2.5" fill="#c8ff76" filter="url(#phosphorGlow)" />
+
+    <!-- Bar 3 (Right - medium: height 34) -->
+    <rect x="30" y="-17" width="10" height="34" rx="2.5" fill="#c8ff76" filter="url(#phosphorGlow)" />
   </g>
 
-  <!-- TYPOGRAPHY -->
-  <g transform="translate(250, 122)">
-    <!-- Wordmark -->
-    <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif" font-size="52" font-weight="800" letter-spacing="-1.5" fill="#f8fafc">
-      AFTER<tspan fill="url(#iconGlow)">GLOW</tspan>
-    </text>
-
-    <!-- Subtitle / Tagline -->
-    <text x="2" y="32" font-family="'DM Mono', 'SF Mono', Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="2.8" fill="#94a3b8">
-      SYNCHRONIZED WATCH PARTY • ZERO-INSTALL CLOUD &amp; LAN
-    </text>
-
-    <!-- Badges pill line -->
-    <g transform="translate(2, 46)">
-      <!-- Badge 1: WebSockets -->
-      <rect x="0" y="0" width="108" height="20" rx="4" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
-      <text x="54" y="14" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#38bdf8" text-anchor="middle">⚡ &lt;250ms SYNC</text>
-
-      <!-- Badge 2: Multi-Source -->
-      <rect x="116" y="0" width="138" height="20" rx="4" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
-      <text x="185" y="14" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#34d399" text-anchor="middle">🎬 YOUTUBE &amp; REELS</text>
-
-      <!-- Badge 3: Cross Platform -->
-      <rect x="262" y="0" width="112" height="20" rx="4" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
-      <text x="318" y="14" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#fbbf24" text-anchor="middle">📱 ALL PLATFORMS</text>
+  <!-- BRAND TYPOGRAPHY -->
+  <g transform="translate(136, 82)">
+    <!-- Eyebrow with leading phosphor indicator dot -->
+    <g transform="translate(2, -26)">
+      <circle cx="4" cy="4" r="3" fill="#c8ff76" filter="url(#phosphorGlow)" />
+      <text x="16" y="7" class="eyebrow-text">SYNCHRONIZED WATCH PARTY</text>
     </g>
+
+    <!-- Wordmark: afterglow (lowercase, DM Sans, matches website) -->
+    <text x="0" y="24" class="brand-wordmark">afterglow</text>
+
+    <!-- Subtle technical metadata strip -->
+    <text x="2" y="48" class="tech-subtext">NTP CLOCK SYNCHRONIZATION · MULTI-SOURCE · ZERO INSTALL</text>
+  </g>
+
+  <!-- Right-side Minimalist Telemetry Pill (matches .room-status) -->
+  <g transform="translate(654, 76)">
+    <rect width="134" height="28" rx="14" fill="#131813" stroke="#2c362b" stroke-width="1" />
+    <circle cx="16" cy="14" r="3" fill="#c8ff76" filter="url(#phosphorGlow)" />
+    <text x="27" y="17" font-family="'DM Mono', monospace" font-size="9px" letter-spacing="1px" fill="#a4ada0">REALTIME SYNC</text>
   </g>
 </svg>

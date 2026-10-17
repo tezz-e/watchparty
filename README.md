@@ -1,41 +1,42 @@
 <p align="center">
-  <img src="./assets/logo.svg" alt="Afterglow Logo" width="100%" />
+  <img src="./assets/logo.svg" alt="afterglow" width="100%" />
 </p>
 
 <p align="center">
-  <a href="https://afterglow-watchparty.onrender.com"><img src="https://img.shields.io/badge/Live_Cloud_Demo-afterglow--watchparty.onrender.com-10b981?style=for-the-badge&logo=render&logoColor=white" alt="Live Demo" /></a>
-  <img src="https://img.shields.io/badge/Test_Suite-50%2F50_Passing-38bdf8?style=for-the-badge&logo=node.js&logoColor=white" alt="Tests" />
-  <img src="https://img.shields.io/badge/Sync_Engine-NTP_RTT_Compensated-f59e0b?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Sync Engine" />
-  <img src="https://img.shields.io/badge/Cross_Platform-Zero_Install-6366f1?style=for-the-badge&logo=safari&logoColor=white" alt="Cross Platform" />
+  <a href="https://afterglow-watchparty.onrender.com"><img src="https://img.shields.io/badge/deployment-live-202b1c?style=flat-square&labelColor=111612&color=c8ff76" alt="Live Deployment" /></a>
+  <img src="https://img.shields.io/badge/tests-50%20passing-202b1c?style=flat-square&labelColor=111612&color=c8ff76" alt="Tests 50 Passing" />
+  <img src="https://img.shields.io/badge/clock-ntp%20rtt%20compensated-202b1c?style=flat-square&labelColor=111612&color=c8ff76" alt="NTP Clock Engine" />
+  <img src="https://img.shields.io/badge/node-20%20%7C%2022-202b1c?style=flat-square&labelColor=111612&color=9a9f95" alt="Node Support" />
 </p>
 
 ---
 
-**Afterglow** is an ultra-low-latency, real-time synchronized watch party platform engineered for seamless viewing across heterogeneous networks and devices. Built on top of an authoritative WebSocket server and custom client-side drift compensation algorithms, Afterglow eliminates playback divergence without requiring browser extensions, third-party accounts, or software installation.
+**afterglow** is a real-time playback synchronization engine and watch party interface built for multi-network viewing across modern web browsers. Built on an authoritative WebSocket server and client-side drift compensation algorithms, afterglow maintains frame-consistent playback across heterogeneous devices without browser extensions, accounts, or native installations.
 
-From high-bitrate movies to YouTube videos and Instagram Reels, friends can watch together in synchronized lockstep with interactive sentiment reactions, collaborative queues, and tactile controls.
-
----
-
-## ⚡ Try It Instantly
-
-The production deployment is hosted live on Render and is accessible across any public network:
-
-### 👉 **[https://afterglow-watchparty.onrender.com](https://afterglow-watchparty.onrender.com)**
-
-> **Zero friction**: Open the link on any device — laptop, iPad, iPhone (Safari), or Android (Chrome). No downloads, no sign-ups, no tracking.
-
-### 30-Second Walkthrough
-1. **Choose an Identity**: Enter your display name and pick your personal signal color.
-2. **Create or Join a Room**: Click **Start a room** and paste any supported media URL, or tap a quick-start sample (YouTube, Instagram Reel, or open-source film).
-3. **Invite Friends**: Click the **INVITE** button in the top navigation bar to copy your unique room URL.
-4. **Watch Together**: Playback commands, seeking, volume synchronization, reactions, and queue voting synchronize instantly across all connected participants.
+The platform coordinates shared rooms for direct video streams (MP4/WebM byte-ranges), adaptive HLS, YouTube, and mobile-optimized Instagram Reels sessions, alongside an honest sync-only countdown protocol for commercial streaming providers.
 
 ---
 
-## 📱 Cross-Platform Experience
+## Live Deployment
 
-Afterglow is designed mobile-first and responsive-first. The user interface automatically adapts its chassis, layout, and control schemes based on viewport constraints and media aspect ratios:
+The service is deployed and publicly accessible:
+
+**[https://afterglow-watchparty.onrender.com](https://afterglow-watchparty.onrender.com)**
+
+* **Zero configuration**: Runs in any modern desktop, tablet, or mobile browser (iOS Safari, Android Chrome, Chromium, Firefox, WebKit).
+* **Privacy-preserving**: No user accounts, credentials, or tracking cookies. Presence is managed through ephemeral in-memory sessions.
+
+### Walkthrough
+1. **Set Presence**: Choose a display name and signal color on the identity screen.
+2. **Create Room**: Select **Start a room** and input a media URL, or pick from the sample presets (YouTube, Instagram Reel, or open-source film).
+3. **Invite Participants**: Use the **Invite** button in the navigation bar to copy the unique room link.
+4. **Synchronized Playback**: Play, pause, seek, volume adjustments, timeline reactions, and queue voting propagate authoritatively to all room members.
+
+---
+
+## Cross-Platform Interface
+
+The interface uses responsive layout adapters and custom media viewports tailored to device constraints and content aspect ratios:
 
 <table align="center" width="100%">
   <tr>
@@ -45,54 +46,54 @@ Afterglow is designed mobile-first and responsive-first. The user interface auto
   <tr>
     <td align="center" valign="top">
       <img src="./assets/desktop-room.png" alt="Desktop Watch Room with Live Chat and Reactions" width="100%" />
-      <p align="left"><em>Widescreen cinema mode featuring the Apple Dynamic Island live status pill (with round-trip latency telemetry), liquid glass spotlight projection, reaction heatmap seekbar, live chat drawer, and tactile hardware transport.</em></p>
+      <p align="left"><em>Widescreen cinema mode featuring real-time route latency telemetry in the status pill, reaction heatmap seekbar, live chat drawer, and tactile playback transport.</em></p>
     </td>
     <td align="center" valign="top">
       <img src="./assets/mobile-reel.png" alt="Mobile Instagram Reels Watch Party" width="100%" />
-      <p align="left"><em>Mobile 9:16 vertical chassis optimized for Instagram Reels. Features synchronized 3-2-1 host countdown, live floating reactions, and single-tap Instagram app launch.</em></p>
+      <p align="left"><em>Vertical 9:16 mobile chassis with synchronized 3-2-1 countdown sequence, live floating emoji reaction stream, and native Instagram launch actions.</em></p>
     </td>
   </tr>
   <tr>
     <th width="65%" align="center"><b>Offline-First Film Discovery &amp; Catalog</b></th>
-    <th width="35%" align="center"><b>Ambient Control Room Dashboard</b></th>
+    <th width="35%" align="center"><b>Control Room Dashboard</b></th>
   </tr>
   <tr>
     <td align="center" valign="top">
       <img src="./assets/discovery-catalog.png" alt="Discovery Catalog Modal" width="100%" />
-      <p align="left"><em>Curated discovery catalog with category tags, fuzzy typo-tolerant search, local library status, and quick-pick samples for immediate room creation.</em></p>
+      <p align="left"><em>Curated discovery catalog with category filtering, typo-tolerant search, local library status, and quick-start sample presets.</em></p>
     </td>
     <td align="center" valign="top">
       <img src="./assets/dashboard-lobby.png" alt="Ambient Control Room Dashboard" width="100%" />
-      <p align="left"><em>Calm, tactile control room lobby showing active server status, reconnection grace parameters, and live theme switcher.</em></p>
+      <p align="left"><em>OLED-optimized control room interface displaying active server state, reconnection parameters, and persistent theme controls.</em></p>
     </td>
   </tr>
 </table>
 
 ---
 
-## 🎬 Supported Media Engines
+## Supported Media Providers
 
-Afterglow decouples room state coordination from media delivery. Each participant's browser renders media independently, while the server coordinates authoritative timing:
+Room timing and media delivery are decoupled. Each viewer's browser renders media independently, while the server coordinates authoritative state and playhead timing:
 
-| Provider | Mechanism | Synchronization Behavior |
+| Provider | Mechanism | Synchronization Model |
 | :--- | :--- | :--- |
-| **YouTube** | Official YouTube IFrame Player API | Bidirectional sync for play, pause, buffer, and seek events with iframe autoplay policy management. |
-| **Instagram Reels** | Dedicated 9:16 Embedded Chassis | Synchronized 3-2-1 countdown, live floating emoji reactions, and personal micro-nudge clock adjustment. |
-| **Direct MP4 / WebM** | HTML5 `<video>` with Byte-Range Requests | Full client-side rate nudging ($0.95\times$–$1.05\times$) and discrete seeking against an authoritative clock. |
-| **Adaptive Streaming (HLS)** | `hls.js` with Native Fallback | Multi-bitrate live or VOD streams with CORS verification and automatic recovery from media network errors. |
-| **Commercial Streaming Services** | Honest Sync-Only Clock Engine | For Netflix, Disney+, and Prime Video: synchronizes a shared countdown, clock, and ready check without violating DRM or terms of service. |
-| **Screen Sharing** | LiveKit WebRTC Screen Video Relay | Optional video-only screen sharing with scoped one-use ticket validation and graceful fallback when unconfigured. |
+| **YouTube** | Official YouTube IFrame Player API | Bidirectional sync for play, pause, buffer, and seek states with autoplay policy recovery. |
+| **Instagram Reels** | Dedicated 9:16 Embedded Chassis | Coordinated 3-2-1 host countdown, live floating reactions, and personal micro-nudge clock trim. |
+| **Direct MP4 / WebM** | HTML5 `<video>` with Byte-Range Requests | Client-side playback rate adjustments ($0.95\times$–$1.05\times$) and discrete seeking against the server clock. |
+| **Adaptive Streaming (HLS)** | `hls.js` with Native Fallback | Multi-bitrate VOD and live streams with CORS checking and network error recovery. |
+| **Commercial Streaming Services** | Sync-Only Protocol Engine | For Netflix, Disney+, and Prime Video: synchronizes a shared countdown, clock, and readiness check without capturing DRM-protected frames. |
+| **Screen Sharing** | LiveKit WebRTC Screen Video Relay | Optional video-only screen sharing with scoped single-use ticket validation and graceful fallback when unconfigured. |
 
 ---
 
-## 🧠 Engineering & Technical Architecture
+## Technical Architecture & Synchronization Engine
 
 ```mermaid
 flowchart TD
     subgraph Client ["Client Browser (React 19 + Vite)"]
-        UI["Tactile UI &amp; Living Glass Shaders"]
+        UI["Tactile Interface &amp; Living Material Shaders"]
         Adapters["Media Player Adapters (YouTube / HTML5 / HLS / Instagram)"]
-        ClockEngine["Sync Engine: RTT Filter &amp; 3-Zone Drift Correction"]
+        ClockEngine["Sync Engine: RTT Filter &amp; 3-Band Drift Correction"]
     end
 
     subgraph Server ["Authoritative Server (Node.js Express + Socket.IO)"]
@@ -114,92 +115,79 @@ flowchart TD
     RoomState -->|"Authoritative State Broadcast"| ClockEngine
 ```
 
-### 1. Clock Synchronization & Drift Correction
-* **NTP-Style Clock Offset Estimation**: Measures client-to-server latency using high-resolution timestamps. High-RTT outliers and incomplete network round-trips are discarded, maintaining median clock offsets within milliseconds.
-* **Three-Tier Drift Correction Engine**:
-  * **Band 1: In Tolerance ($\le 150\text{ ms}$)**: Playback proceeds normally; no intervention is made to preserve audio pitch.
-  * **Band 2: Micro-Drift ($150\text{ ms} - 1500\text{ ms}$)**: Playback rate is smoothly nudged between $0.95\times$ and $1.05\times$ to seamlessly glide the local playhead back into lockstep without jarring skips.
-  * **Band 3: Hard Divergence ($> 1500\text{ ms}$)**: Immediate discrete seek to the authoritative server position.
-* **Loopback & Cloud Benchmarks**: Automated Playwright multi-client tests observe maximum drift $\le 38.6\text{ ms}$ under local conditions and $< 250\text{ ms}$ p95 propagation across public cloud deployments.
+### 1. Clock Estimation & Drift Correction
+* **NTP-Style Clock Offset Estimation**: Calculates client-to-server clock offset using round-trip timestamp exchanges. High-RTT outliers are filtered using a low-median window.
+* **Three-Band Drift Correction**:
+  * **Band 1: Tolerance Threshold ($\le 150\text{ ms}$)**: Playback continues uninhibited to prevent audio pitch artifacts.
+  * **Band 2: Micro-Drift Correction ($150\text{ ms} - 1500\text{ ms}$)**: Playback rate is smoothly nudged between $0.95\times$ and $1.05\times$ until the local playhead converges on the authoritative clock.
+  * **Band 3: Hard Resynchronization ($> 1500\text{ ms}$)**: Immediate discrete seek to the server timestamp.
+* **Observed Accuracy**: Automated Playwright end-to-end tests measure maximum observed drift below $39\text{ ms}$ in local environments and below $250\text{ ms}$ p95 propagation over public cloud networks.
 
-### 2. Room Governance & Network Resilience
-* **15-Second Reconnect Grace Window**: If a host or participant experiences a temporary network drop (e.g. mobile cell tower handover or Wi-Fi reconnect), their session and host permissions are preserved for 15 seconds. If the grace period expires, room ownership gracefully transfers to the next online member.
-* **Timeline Reaction Heatmap**: Ephemeral emoji reactions (✨, ♥, ⚡, 👏, 😂) are stamped against the video timeline and aggregated into a live visual heatmap over the seekbar, summarizing crowd reaction peaks upon playback completion.
-* **Democratic Polling & Collaborative Queue**: Participants can create custom polls with embedded media links. Winning poll items are automatically added to the room queue, where members upvote selections to determine the next synchronized film.
+### 2. Room State & Network Resilience
+* **15-Second Reconnect Grace Window**: Preserves user identity and host privileges during transient mobile network handovers. Host authority migrates to the next online participant only after the grace window expires.
+* **Timeline Reaction Heatmap**: Emoji reaction events are recorded with fractional media timestamps and aggregated into a seekbar density map, summarizing engagement peaks.
+* **Democratic Polling & Queue Automation**: Room participants can vote on media choices via custom polls; winning items automatically promote to the shared queue.
 
-### 3. Tactile "Living Glass" UI Design
-* Built following modern design principles inspired by Apple's Dynamic Island and tactile hardware interfaces.
-* **Dynamic Island Status Pill**: Features a pulsing phosphor LED indicator, live round-trip latency counter, and tactile hover-squish dynamics.
-* **OLED-Optimized Colorways**: Persistent selection between three distinct palettes:
-  * 🌿 **Moss Glow** (Vivid emerald accents with deep forest backdrops)
-  * 🏮 **Amber Lamp** (Warm golden amber with low-light cinematic tones)
-  * 🌌 **Blue Hour** (Deep midnight blues with electric cyan illumination)
+### 3. Tactile Design System
+* Designed around physical control room instruments and OLED display ergonomics.
+* **Status Pill**: Houses the real-time latency readout with a subtle phosphor glow indicator.
+* **Three Persistent Colorways**:
+  * **Moss Glow** (Emerald phosphor accents on muted dark charcoal)
+  * **Amber Lamp** (Warm golden amber for low-light cinematic sessions)
+  * **Blue Hour** (Deep midnight blues with cyan indicator lights)
 
 ---
 
-## 🛠️ Local Installation & Development
+## Local Development
 
 ### Prerequisites
 * **Node.js**: `20.19+` or `22.12+`
 * **npm**: `10+`
 
-### 1. Clone & Install
+### 1. Setup & Testing
 ```powershell
 git clone https://github.com/tezz-e/watchparty.git
 cd watchparty
 npm.cmd install
-```
-
-### 2. Run Test Suite
-```powershell
-# Run the 50-spec Node.js unit and integration test suite
 npm.cmd test
-
-# Run the Playwright multi-browser end-to-end synchronization test
 npm.cmd run test:browser
 ```
 
-### 3. Run Development Servers
+### 2. Development Servers
 ```powershell
-# In terminal 1: Start the backend room & socket server (port 3001)
+# Terminal 1: Backend room server (port 3001)
 npm.cmd run server
 
-# In terminal 2: Start Vite client with hot module replacement (port 5173)
+# Terminal 2: Vite development server with HMR (port 5173)
 npm.cmd run dev
 ```
-Open `http://localhost:5173` in your browser.
 
 ---
 
-## 🌐 Multi-Device LAN & Cloud Hosting
+## Deployment & Networking
 
-### Same-Wi-Fi (LAN) Hosting
-To host a party for family and friends on the same local network:
+### Local Network (Same-Wi-Fi)
+To host a session on your local network:
 ```powershell
-# Build production bundle and launch single-origin server
 npm.cmd run build
 npm.cmd run server
 ```
-Find your machine's local IPv4 address:
-```powershell
-Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' }
-```
-Open `http://<your-ip>:3001` on your computer and guest phones/tablets. Invite links automatically rewrite `localhost` to the host's reachable LAN IP.
+Invite links automatically rewrite `localhost` to the host machine's reachable local IPv4 address.
 
 ### Cloud Deployment (Render / Docker)
-The application includes pre-configured configurations for modern cloud platforms:
-* **[render.yaml](./render.yaml)**: Automatic zero-config deployment to Render Web Services with WebSockets enabled and `trust proxy` configured.
-* **[Dockerfile](./Dockerfile)**: Multi-stage lightweight production image.
-* **Environment Variables**:
-  * `PORT`: Server listen port (default `3001`).
-  * `AFTERGLOW_PUBLIC_URL`: Canonical public HTTPS URL for generating invite links behind reverse proxies.
-  * `RECONNECT_GRACE_MS`: Member reconnect grace duration (default `15000` ms).
+The repository contains native deployment definitions:
+* **[render.yaml](./render.yaml)**: Blueprint for Render Web Services with WebSockets enabled and proxy headers trusted.
+* **[Dockerfile](./Dockerfile)**: Production multi-stage container build.
+* **Key Configuration**:
+  * `PORT`: Listening port (default `3001`).
+  * `AFTERGLOW_PUBLIC_URL`: Canonical public HTTPS URL for generating external invite links.
+  * `RECONNECT_GRACE_MS`: Disconnect grace timeout in milliseconds (default `15000`).
 
 ---
 
-## 🧪 Verification & Automated Coverage
+## Automated Test Suite
 
-The repository enforces complete regression protection across networking, media providers, and browser behavior:
+Complete test coverage spans clock synchronization, provider parsing, and room state transitions:
 
 ```text
 ✔ configured public origin takes precedence and ignores URL paths
@@ -218,44 +206,44 @@ The repository enforces complete regression protection across networking, media 
 ℹ tests 50 | pass 50 | fail 0
 ```
 
-Detailed test conditions, loopback limits, and performance data are documented in [TESTING.md](./TESTING.md) and [docs/PERFORMANCE.md](./docs/PERFORMANCE.md).
+Detailed test methodology and loopback benchmark records are maintained in [TESTING.md](./TESTING.md) and [docs/PERFORMANCE.md](./docs/PERFORMANCE.md).
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 afterglow/
-├── assets/                  # High-resolution showcase screenshots and vector logo
-├── docs/                    # Technical specs, cloud deployment guide, performance logs
+├── assets/                  # Interface showcase captures and vector branding
+├── docs/                    # Technical specifications, benchmarks, and deployment
 │   ├── DEPLOYMENT.md        # Cloud deployment guide (Render, Railway, Docker)
 │   └── PERFORMANCE.md       # Latency percentiles and drift benchmarks
 ├── media/                   # Local media library for byte-range streaming
 ├── public/                  # Static assets and offline film posters
 ├── scripts/
-│   ├── capture-screenshots.js # Automated Playwright showcase capture utility
-│   ├── verify-cloud.js      # Multi-client public cloud verification script
+│   ├── capture-screenshots.js # Automated Playwright capture utility
+│   ├── verify-cloud.js      # Public cloud synchronization verifier
 │   └── seed-catalog.js      # Offline film catalog generation
-├── server/                  # Core backend modules
+├── server/                  # Backend implementation
 │   ├── clock.js             # NTP-style timestamping and drift calculation
 │   ├── library.js           # Byte-range HTTP 206 streaming server
 │   ├── livekit.js           # WebRTC ticket issuing and token authorization
 │   └── rooms.js             # Authoritative room state machine
-├── shared/                  # Shared validation rules and media URL parsers
-├── src/                     # React 19 Frontend
-│   ├── components/          # Living glass UI, room chassis, players, and modals
-│   ├── data/                # Offline catalog snapshot
-│   └── styles.css           # Tactile design system, theme tokens, and shaders
+├── shared/                  # Shared URL parsers and validation schemas
+├── src/                     # React 19 Client
+│   ├── components/          # Room chassis, media adapters, and modals
+│   ├── data/                # Offline catalog records
+│   └── styles.css           # Design tokens, theme variables, and shaders
 ├── tests/                   # Automated unit, integration, and browser test specs
 ├── Dockerfile               # Production container definition
-├── render.yaml              # Render cloud blueprint
+├── render.yaml              # Cloud deployment blueprint
 └── server.js                # Express + Socket.IO production entrypoint
 ```
 
 ---
 
-## 📄 License & Attribution
+## Attribution & License
 
-* Built with React 19, Vite, Socket.IO, Express, and Playwright.
-* Open-movie posters and metadata powered by [The Movie Database (TMDB)](https://www.themoviedb.org) and [JustWatch](https://www.justwatch.com).
-* Distributed under the MIT License. See [CREDITS.md](./CREDITS.md) for media licenses.
+* Developed with React 19, Vite, Socket.IO, Express, and Playwright.
+* Open-movie posters and metadata provided by [The Movie Database (TMDB)](https://www.themoviedb.org) and [JustWatch](https://www.justwatch.com).
+* Distributed under the MIT License. See [CREDITS.md](./CREDITS.md) for full licensing terms.
