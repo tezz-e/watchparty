@@ -30,6 +30,7 @@ test("two browsers load the same local clip and synchronize playback", async ({ 
     const hostVideo = host.locator(".screen-chassis video:not(.livekit-video)");
     await expect.poll(() => hostVideo.evaluate(video => video.readyState)).toBeGreaterThanOrEqual(2);
     await host.getByRole("button", { name: /INVITE/ }).click();
+    await expect(host.getByRole("button", { name: /LINK COPIED/ })).toBeVisible();
     const inviteUrl = await host.evaluate(() => navigator.clipboard.readText());
     const invite = new URL(inviteUrl);
     expect(invite.searchParams.get("room")).toBeTruthy();

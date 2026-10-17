@@ -61,6 +61,29 @@ npm.cmd run load-test -- http://localhost:3001 20 20
 
 The script's arguments are server URL, client count (1–20), and sequential playback command count (1–10,000). It creates a temporary room, sends simultaneous same-version updates, forces one participant to disconnect and rejoin with the same identity, verifies a later update reaches all clients, prints client and server percentiles, and disconnects its clients.
 
+## Measure on the actual LAN
+
+The recorded results above are loopback measurements only. A valid LAN result requires the load-test client process to run on a different physical device from the room server; targeting your own machine's Wi-Fi IPv4 from that same machine still does not measure the Wi-Fi path.
+
+The app server was separately confirmed reachable through the host's Wi-Fi interface from the host machine itself. That verifies interface binding and LAN-address invite construction, but it is not a LAN latency result because no second physical client was available in this run.
+
+On the host computer, build and start the server, then note its Wi-Fi IPv4 address:
+
+```powershell
+npm.cmd run build
+npm.cmd run server
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -match 'Wi-Fi|Wireless' -and $_.IPAddress -notlike '169.254.*' }
+```
+
+Allow Node.js through Windows Firewall on a trusted private network if prompted. On a second computer connected to the same Wi-Fi, check out the same project revision, install dependencies with `npm.cmd ci`, and run the test against the host's Wi-Fi address:
+
+```powershell
+npm.cmd run load-test -- http://<host-Wi-Fi-IPv4>:3001 10 20
+npm.cmd run load-test -- http://<host-Wi-Fi-IPv4>:3001 20 20
+```
+
+Use a fresh server process for each run if you need isolated server telemetry. Save the emitted JSON, record the client device, server device, Wi-Fi band/router, date, room size and any timeouts, then add those observed results here. The 20-client case is virtual clients from the second device, not 20 physical browsers. For a 2–4-person demo, simply open the copied invite on other devices on the same Wi-Fi; no benchmark-sized client load is needed.
+
 ## Failure handling and unmeasured cases
 
 - **Brief disconnect:** a member identity and room slot are retained for the configured reconnect grace period (15 seconds by default). Rejoining with the same browser identity receives the server's current room state. If the window expires, the member is removed and a disconnected host is elected away.

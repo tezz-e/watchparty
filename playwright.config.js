@@ -22,6 +22,7 @@ export default defineConfig({
         LIVEKIT_URL: "",
         LIVEKIT_API_KEY: "",
         LIVEKIT_API_SECRET: "",
+        AFTERGLOW_PUBLIC_URL: "http://127.0.0.1:43762",
       },
       reuseExistingServer: false,
       timeout: 30_000,

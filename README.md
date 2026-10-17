@@ -16,6 +16,20 @@ npm.cmd run server
 
 The production server serves the built app and Socket.IO from one origin (default port `3001`). Open that URL on each device. For Vite development, use `npm.cmd run dev`; its socket and API requests are proxied to `http://localhost:3001`. Set `VITE_BACKEND_URL` only when the API/media server is elsewhere. `VITE_SOCKET_URL` is an optional explicit Socket.IO URL override.
 
+## Demo on a LAN or host on the internet
+
+For a simple same-Wi-Fi demo, build once and run the single-origin server:
+
+```powershell
+npm.cmd run build
+npm.cmd run server
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' }
+```
+
+On the host computer and each demo device, open `http://<host-LAN-IPv4>:3001`. Use the room's Invite button to copy a link with that reachable host address. If the app was opened at `localhost`, the server rewrites invite links to an active LAN IPv4. If a VPN exposes an address that guests cannot reach, set `AFTERGLOW_LAN_IP` to the host's Wi-Fi IPv4 in the ignored `.env` file. For Vite development, use `npm.cmd run dev:lan`; it binds Vite to `0.0.0.0`, and copied invites use its LAN-accessible port. Permit Node.js through Windows Firewall on a trusted private network if Windows asks; do not disable the firewall. The host and guests must be able to reach the host machine on the selected port.
+
+The room server is a standard client-server WebSocket service; there is no peer-to-peer room discovery. Friends on different networks can use it when the app/server is deployed at a public HTTPS URL and that address is reachable. Set `AFTERGLOW_PUBLIC_URL=https://your-public-host.example` on the server when it is behind a reverse proxy or when invite links should use a canonical URL. The deployment must support Socket.IO WebSocket upgrades and serve the app/API/media from the configured origin; external media still loads directly in each viewer's browser. A self-hosted server behind a home router additionally needs appropriate port forwarding and HTTPS. Do not expose the development LiveKit credentials or compose configuration as a production service.
+
 ## Color themes
 
 Choose Moss glow (green), Amber lamp (warm amber-orange), or Blue hour from the theme selector on the identity, lobby, or room screen. Your selection is stored in this browser's local storage and follows you between screens.

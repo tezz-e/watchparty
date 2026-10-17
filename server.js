@@ -9,6 +9,7 @@ import { listLibraryItems } from "./server/library.js";
 import { MAX_MEMBERS, RECONNECT_GRACE_MS, rooms } from "./server/rooms.js";
 import { serverLatencyMetrics, serverTelemetry } from "./server/telemetry.js";
 import { canPublishScreen, liveKitService } from "./server/livekit.js";
+import { getInviteOrigin } from "./server/inviteOrigin.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,6 +36,23 @@ app.get("/health", (_req, res) => {
     reconnectGraceMs: RECONNECT_GRACE_MS,
     telemetry: serverTelemetry(rooms),
   });
+});
+
+app.get("/api/invite-origin", (req, res) => {
+  try {
+    res.json({
+      origin: getInviteOrigin({
+        publicUrl: process.env.AFTERGLOW_PUBLIC_URL,
+        lanIp: process.env.AFTERGLOW_LAN_IP,
+        origin: req.query.pageOrigin || req.get("origin"),
+        protocol: req.protocol,
+        host: req.get("host"),
+      }),
+    });
+  } catch (error) {
+    console.error("Unable to determine the invite URL origin.", error);
+    res.status(500).json({ error: "The server invite URL is misconfigured." });
+  }
 });
 
 app.get("/api/library", async (_req, res) => {

@@ -232,7 +232,22 @@ export function useRoomSession(profile, room) {
     const interval = setInterval(onTime, 1000);
     return () => clearInterval(interval);
   }, [provider, config.source, hasRemote]);
-  const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
+  const share = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/api/invite-origin?pageOrigin=${encodeURIComponent(location.origin)}`);
+      if (!response.ok) throw new Error(`Invite origin request failed with HTTP ${response.status}.`);
+      const { origin } = await response.json();
+      const inviteUrl = new URL(origin);
+      inviteUrl.pathname = "/";
+      inviteUrl.searchParams.set("room", room.id);
+      await navigator.clipboard.writeText(inviteUrl.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      console.error("Unable to copy the room invite link.", error);
+      setNotice("Could not create or copy the invite link. Check server connectivity and clipboard permissions.");
+    }
+  };
 
   return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
 }
