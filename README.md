@@ -28,15 +28,15 @@ npm.cmd run fetch:media -- <verified-https-url> <filename.mp4>
 
 The link checker requires HTTP `206 Partial Content` and a valid `Content-Range` for `bytes=0-0`. The downloader verifies byte-range support before saving into `media/`. Large media files are git-ignored. Record the source and exact license in [CREDITS.md](./CREDITS.md).
 
-The optional catalog seeder is a one-time snapshot operation, not a runtime dependency. It reads `TMDB_READ_ACCESS_TOKEN` from the server-side environment, fetches movie metadata, trailers and regional availability, downloads poster images locally, then writes `src/data/catalog.json` and `src/data/SEED_INFO.json`. Set `SEED_REGION` to a two-letter country code. It is intentionally not run as part of tests or builds. Review TMDB's current terms and JustWatch attribution requirements before running it; the script refuses to run unless `TMDB_TERMS_REVIEWED=1` is set. The official TMDB terms endpoint was unreachable from the environment used for this implementation.
+The catalog is an offline snapshot, not a runtime dependency. The current snapshot contains 32 TMDB titles and locally stored posters for Norway (`NO`), plus the 8 open-movie fallback records. The snapshot date and six-month refresh deadline are recorded in `src/data/SEED_INFO.json`. TMDB's API terms require attribution, a TMDB logo, and prohibit caching API data for more than six months; watch-provider data is powered by JustWatch and requires JustWatch attribution. The discovery screen displays the snapshot region/date and attribution.
 
 ```powershell
-$env:SEED_REGION = "US"
+$env:SEED_REGION = "NO"
 $env:TMDB_TERMS_REVIEWED = "1"
-npm.cmd run seed:catalog
+node --env-file=.env .\scripts\seed-catalog.js
 ```
 
-Never use a `VITE_` variable for the TMDB token. The UI does not make TMDB requests at runtime; it uses the committed local snapshot and local posters.
+Review the current TMDB and JustWatch terms before reseeding. The script reads `TMDB_READ_ACCESS_TOKEN` from `.env`, requires the terms-review confirmation above, downloads posters locally, and replaces the snapshot only after all requests succeed. Never use a `VITE_` variable for the token. The UI does not make TMDB requests at runtime.
 
 ## Media providers
 

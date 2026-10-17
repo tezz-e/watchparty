@@ -1,142 +1,1392 @@
 {
   "snapshotDate": "2026-10-17",
-  "region": "LOCAL",
-  "source": "Handwritten offline fallback; availability requires a licensed local file.",
+  "snapshotExpiresAt": "2027-04-17",
+  "region": "NO",
+  "source": "TMDB snapshot; streaming availability data by JustWatch.",
   "movies": [
+    {
+      "id": "tmdb-969681",
+      "title": "Spider-Man: Brand New Day",
+      "year": 2026,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Action",
+        "Adventure"
+      ],
+      "overview": "Fighting crime full-time as Spider-Man in a world that doesn't remember him—and the pressure of seeing his old friends move on without him—sparks a change in Peter Parker he may not have the power to control. But that transformation might also be the only thing that can stop a shocking new threat to the city and those he loves - a powerful villain no one can even see.",
+      "rating": 8.469,
+      "trailerKey": "P3uI5sLosKU",
+      "availability": [
+        "TV 2 Play",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 431,
+          "name": "TV 2 Play"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-969681.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1148365",
+      "title": "Matchbox the Movie",
+      "year": 2026,
+      "category": "Action",
+      "genres": [
+        "Action",
+        "Comedy",
+        "Adventure"
+      ],
+      "overview": "When a group of former childhood friends reconnect, their reunion takes a wild turn as they stumble upon a dangerous international plot—and must save the world.",
+      "rating": 7.918,
+      "trailerKey": "7xfqITrMDcI",
+      "availability": [
+        "Apple TV"
+      ],
+      "providers": [
+        {
+          "id": 350,
+          "name": "Apple TV"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1148365.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1368337",
+      "title": "The Odyssey",
+      "year": 2026,
+      "category": "Adventure",
+      "genres": [
+        "Adventure",
+        "Action",
+        "Fantasy"
+      ],
+      "overview": "Odysseus, the legendary King of Ithaca, embarks on a long and perilous journey home following the Trojan War. Throughout his voyage, he is forced to confront the whims of gods, mythological monsters, and trials that stretch both his cunning and his humanity to the breaking point.",
+      "rating": 8.009,
+      "trailerKey": "AyIZ9tiiN8I",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1368337.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1058424",
+      "title": "Hope",
+      "year": 2026,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Mystery",
+        "Action"
+      ],
+      "overview": "In the remote South Korean village of Hope Harbor, police chief Bum-seok and officer Sung-ae are called to investigate a mysterious creature wreaking havoc on the community. But all is not as it seems, and perceptions can be misleading. What begins as ignorance plants the seed of disaster, escalating through human conflict into a tragedy of cosmic proportions.",
+      "rating": 6.88,
+      "trailerKey": "OFaJzL83y0Q",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1058424.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1423191",
+      "title": "Resident Evil",
+      "year": 2026,
+      "category": "Horror",
+      "genres": [
+        "Horror",
+        "Science Fiction",
+        "Adventure"
+      ],
+      "overview": "Medical courier Bryan unwittingly finds himself fighting for survival as one fateful, horrifying night collapses around him in chaos.",
+      "rating": 7.309,
+      "trailerKey": "mNd1gb19A-c",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1423191.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1084244",
+      "title": "Toy Story 5",
+      "year": 2026,
+      "category": "Animation",
+      "genres": [
+        "Animation",
+        "Family",
+        "Comedy",
+        "Adventure"
+      ],
+      "overview": "When Bonnie receives a Lilypad tablet as a gift and becomes obsessed, Buzz, Woody, Jessie and the rest of the gang's jobs become exponentially harder when they have to go head to head with the all-new threat to playtime.",
+      "rating": 8.285,
+      "trailerKey": "QftAW9TTmuQ",
+      "availability": [
+        "Disney Plus",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 337,
+          "name": "Disney Plus"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1084244.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1204680",
+      "title": "Coyote vs. Acme",
+      "year": 2026,
+      "category": "Comedy",
+      "genres": [
+        "Comedy",
+        "Adventure",
+        "Family"
+      ],
+      "overview": "After Acme products fail him one too many times in his dogged pursuit of the Roadrunner, Wile E. Coyote decides to hire a billboard lawyer to sue the Acme Corporation.",
+      "rating": 7.498,
+      "trailerKey": "kMsiD1Nky5I",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1204680.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1003596",
+      "title": "Avengers: Doomsday",
+      "year": 2026,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Action",
+        "Adventure"
+      ],
+      "overview": "Beloved heroes from three distinct universes are set on a deadly collision course and face an existential threat unlike anything they've ever encountered.",
+      "rating": 0,
+      "trailerKey": "X1aFkAkFASk",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1003596.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1084242",
+      "title": "Zootopia 2",
+      "year": 2025,
+      "category": "Animation",
+      "genres": [
+        "Animation",
+        "Adventure",
+        "Comedy",
+        "Mystery",
+        "Family"
+      ],
+      "overview": "After cracking the biggest case in Zootopia's history, rookie cops Judy Hopps and Nick Wilde find themselves on the twisting trail of a great mystery when Gary De'Snake arrives and turns the animal metropolis upside down. To crack the case, Judy and Nick must go undercover to unexpected new parts of town, where their growing partnership is tested like never before.",
+      "rating": 7.7,
+      "trailerKey": "sEgPQ7HKoBA",
+      "availability": [
+        "Disney Plus",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 337,
+          "name": "Disney Plus"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1084242.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1022789",
+      "title": "Inside Out 2",
+      "year": 2024,
+      "category": "Animation",
+      "genres": [
+        "Animation",
+        "Adventure",
+        "Comedy",
+        "Family"
+      ],
+      "overview": "Teenager Riley's mind headquarters is undergoing a sudden demolition to make room for something entirely unexpected: new Emotions! Joy, Sadness, Anger, Fear and Disgust, who’ve long been running a successful operation by all accounts, aren’t sure how to feel when Anxiety shows up. And it looks like she’s not alone.",
+      "rating": 7.5,
+      "trailerKey": "u69y5Ie519M",
+      "availability": [
+        "Disney Plus",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 337,
+          "name": "Disney Plus"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1022789.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1315772",
+      "title": "Minions & Monsters",
+      "year": 2026,
+      "category": "Adventure",
+      "genres": [
+        "Adventure",
+        "Animation",
+        "Comedy",
+        "Family",
+        "Fantasy"
+      ],
+      "overview": "This is the rambunctious, ridiculous and totally true story of how the Minions conquered Hollywood, became movie stars, lost everything, unleashed monsters onto the world and then banded together to try and save the planet from the mayhem they had just created.",
+      "rating": 7.56,
+      "trailerKey": "V-O-uBaHk3c",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1315772.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1184918",
+      "title": "The Wild Robot",
+      "year": 2024,
+      "category": "Family",
+      "genres": [
+        "Family",
+        "Animation",
+        "Science Fiction",
+        "Adventure"
+      ],
+      "overview": "After a shipwreck, an intelligent robot called Roz is stranded on an uninhabited island. To survive the harsh environment, Roz bonds with the island's animals and cares for an orphaned baby goose.",
+      "rating": 8.309,
+      "trailerKey": "VUCNBAmse04",
+      "availability": [
+        "Netflix",
+        "Viaplay",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video",
+        "Apple TV Store"
+      ],
+      "providers": [
+        {
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1184918.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1377237",
+      "title": "Runner",
+      "year": 2026,
+      "category": "Action",
+      "genres": [
+        "Action",
+        "Comedy"
+      ],
+      "overview": "A former soldier is thrown into a brutal race against time when a critical medical delivery makes him and his unlikely partner the targets of a ruthless cartel. As the mission spirals into a deadly manhunt, every detour, delay, and bullet pushes them closer to failure. With betrayal closing in from every side, they must survive the chase and deliver their cargo to save the life of a little girl.",
+      "rating": 8.299,
+      "trailerKey": "B6Z9MM1LhEA",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1377237.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1302904",
+      "title": "Practical Magic 2",
+      "year": 2026,
+      "category": "Romance",
+      "genres": [
+        "Romance",
+        "Fantasy",
+        "Comedy"
+      ],
+      "overview": "The Owens sisters must confront the dark curse that threatens to unravel their family once and for all.",
+      "rating": 6.843,
+      "trailerKey": "Ho10_4IX1jE",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1302904.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1514026",
+      "title": "Buddy",
+      "year": 2026,
+      "category": "Horror",
+      "genres": [
+        "Horror",
+        "Comedy",
+        "Fantasy"
+      ],
+      "overview": "A magical, singing orange unicorn holds his cast hostage in a surreal TV-show dimension, as he becomes more and more demented.",
+      "rating": 7.23,
+      "trailerKey": null,
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1514026.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-82976",
+      "title": "The Novices",
+      "year": 1970,
+      "category": "Comedy",
+      "genres": [
+        "Comedy",
+        "Drama"
+      ],
+      "overview": "Sister Agnès runs away from her convent in Brittany and seeks refuge in Paris with prostitute Mona Lisa. With absolutely no qualifications, the young novice has a hard job finding work, so Mona Lisa tries to teach her the ropes of the oldest profession of them all!",
+      "rating": 4.8,
+      "trailerKey": "wtqTrMjhT2U",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-82976.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1236045",
+      "title": "Animals",
+      "year": 2026,
+      "category": "Thriller",
+      "genres": [
+        "Thriller",
+        "Drama"
+      ],
+      "overview": "When the son of an L.A. mayoral candidate is kidnapped, he and his wife have a few hours to come up with the ransom payment. With most of their money spent on his political campaign, they have to get their hands dirty and expose a side of their lives they never intended to see the light of day.",
+      "rating": 7.159,
+      "trailerKey": "ZkN2M4ODdys",
+      "availability": [
+        "Netflix"
+      ],
+      "providers": [
+        {
+          "id": 8,
+          "name": "Netflix"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1236045.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1339274",
+      "title": "Don't Leave the Kids Alone",
+      "year": 2026,
+      "category": "Horror",
+      "genres": [
+        "Horror",
+        "Drama",
+        "Thriller"
+      ],
+      "overview": "A mother moves into a new house with her two children. One night she must leave the siblings home alone. What begins as a blast of carefree play soon turns into a claustrophobic horror story.",
+      "rating": 6.801,
+      "trailerKey": null,
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1339274.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1751701",
+      "title": "אחרי הפגיעה",
+      "year": 2026,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Drama",
+        "Thriller"
+      ],
+      "overview": "After losing his father, Ethan Nichols inherits one of the largest greenhouses in the country, just as the world faces a devastating threat from an approaching asteroid. As society begins to unravel, Ethan grapples with personal betrayal, overwhelming loneliness, and the growing fear that survival may come at the cost of his humanity. Seeking refuge in his family’s bunker, Ethan endures the harsh aftermath of the impact, wrestling with physical injury and emotional despair. When a faint voice crackles over his radio, Ethan discovers he's not as alone as he believed.",
+      "rating": 5.8,
+      "trailerKey": "Af8D6sRDyxo",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1751701.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-977942",
+      "title": "The Uprising",
+      "year": 2026,
+      "category": "Action",
+      "genres": [
+        "Action",
+        "Drama",
+        "History"
+      ],
+      "overview": "As war and plague devastate 14th-century England, a humble peasant ignites a rebellion, uniting an army of commoners to defy the King’s might in a desperate fight for justice and survival.",
+      "rating": 7.95,
+      "trailerKey": "lyhCxZN4Ro8",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-977942.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1108427",
+      "title": "Moana",
+      "year": 2026,
+      "category": "Family",
+      "genres": [
+        "Family",
+        "Fantasy",
+        "Comedy",
+        "Adventure"
+      ],
+      "overview": "Teenage Moana answers the Ocean's call and, for the first time, voyages beyond the reef of her island of Motunui with infamous demigod Maui on an unforgettable journey to restore prosperity to her people.",
+      "rating": 7.483,
+      "trailerKey": "EEz5xbzYPKI",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1108427.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-9479",
+      "title": "The Nightmare Before Christmas",
+      "year": 1993,
+      "category": "Fantasy",
+      "genres": [
+        "Fantasy",
+        "Animation",
+        "Family"
+      ],
+      "overview": "Tired of scaring humans every October 31 with the same old bag of tricks, Jack Skellington, the spindly king of Halloween Town, kidnaps Santa Claus and plans to deliver shrunken heads and other ghoulish gifts to children on Christmas morning. But as Christmas approaches, Jack's rag-doll girlfriend, Sally, tries to foil his misguided plans.",
+      "rating": 7.85,
+      "trailerKey": null,
+      "availability": [
+        "Disney Plus",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "Blockbuster",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 337,
+          "name": "Disney Plus"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-9479.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-129",
+      "title": "Spirited Away",
+      "year": 2001,
+      "category": "Animation",
+      "genres": [
+        "Animation",
+        "Family",
+        "Fantasy"
+      ],
+      "overview": "A young girl, Chihiro, becomes trapped in a strange new world of spirits. When her parents undergo a mysterious transformation, she must call upon the courage she never knew she had to free her family.",
+      "rating": 8.536,
+      "trailerKey": "GAp2_0JJskk",
+      "availability": [
+        "Netflix",
+        "Filmoteket",
+        "Cineasterna",
+        "SF Anytime",
+        "Apple TV Store"
+      ],
+      "providers": [
+        {
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "id": 560,
+          "name": "Filmoteket"
+        },
+        {
+          "id": 496,
+          "name": "Cineasterna"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-129.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-502356",
+      "title": "The Super Mario Bros. Movie",
+      "year": 2023,
+      "category": "Family",
+      "genres": [
+        "Family",
+        "Comedy",
+        "Adventure",
+        "Fantasy",
+        "Animation"
+      ],
+      "overview": "While working underground to fix a water main, Brooklyn plumbers—and brothers—Mario and Luigi are transported down a mysterious pipe and wander into a magical new world. But when the brothers are separated, Mario embarks on an epic quest to find Luigi.",
+      "rating": 7.589,
+      "trailerKey": "RjNcTBXTk4I",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-502356.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1153576",
+      "title": "Street Fighter",
+      "year": 2026,
+      "category": "Action",
+      "genres": [
+        "Action",
+        "Fantasy"
+      ],
+      "overview": "In 1993, estranged Street Fighters Ryu and Ken Masters are thrown back into combat when the mysterious Chun-Li recruits them for the next World Warrior Tournament: a brutal clash of fists, fate, and fury. But behind this battle royale lies a deadly conspiracy that forces them to face off against each other and the demons of their past. And if they don't, it's GAME OVER!",
+      "rating": 6.2,
+      "trailerKey": "U6sbm1OaJb8",
+      "availability": [],
+      "providers": [],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1153576.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1232569",
+      "title": "Pinocchio: Unstrung",
+      "year": 2026,
+      "category": "Horror",
+      "genres": [
+        "Horror",
+        "Fantasy",
+        "Mystery"
+      ],
+      "overview": "Influenced by a sinister Cricket and created by Geppetto, Pinocchio launches a violent crusade to carve himself into a real boy like his brother James, one piece at a time.",
+      "rating": 6.5,
+      "trailerKey": "Y4lZewE6JMI",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1232569.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-83533",
+      "title": "Avatar: Fire and Ash",
+      "year": 2025,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Adventure",
+        "Fantasy"
+      ],
+      "overview": "In the wake of the devastating war against the RDA and the loss of their eldest son, Jake Sully and Neytiri face a new threat on Pandora: the Ash People, a violent and power-hungry Na'vi tribe led by the ruthless Varang. Jake's family must fight for their survival and the future of Pandora in a conflict that pushes them to their emotional and physical limits.",
+      "rating": 7.651,
+      "trailerKey": "Ma1x7ikpid8",
+      "availability": [
+        "Disney Plus",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 337,
+          "name": "Disney Plus"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-83533.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-671",
+      "title": "Harry Potter and the Philosopher's Stone",
+      "year": 2001,
+      "category": "Adventure",
+      "genres": [
+        "Adventure",
+        "Fantasy"
+      ],
+      "overview": "Harry Potter has lived under the stairs at his aunt and uncle's house his whole life. But on his 11th birthday, he learns he's a powerful wizard—with a place waiting for him at the Hogwarts School of Witchcraft and Wizardry. As he learns to harness his newfound powers with the help of the school's kindly headmaster, Harry uncovers the truth about his parents' deaths—and about the villain who's to blame.",
+      "rating": 7.904,
+      "trailerKey": "l91Km49W9qI",
+      "availability": [
+        "Strim",
+        "HBO Max",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "Blockbuster",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 578,
+          "name": "Strim"
+        },
+        {
+          "id": 1899,
+          "name": "HBO Max"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-671.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-460458",
+      "title": "Resident Evil: Welcome to Raccoon City",
+      "year": 2021,
+      "category": "Action",
+      "genres": [
+        "Action",
+        "Horror",
+        "Science Fiction"
+      ],
+      "overview": "Once the booming home of pharmaceutical giant Umbrella Corporation, Raccoon City is now a dying Midwestern town. The company’s exodus left the city a wasteland…with great evil brewing below the surface. When that evil is unleashed, the townspeople are forever…changed…and a small group of survivors must work together to uncover the truth behind Umbrella and make it through the night.",
+      "rating": 5.949,
+      "trailerKey": "IQqqAWMIIAQ",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-460458.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1101383",
+      "title": "The End of Oak Street",
+      "year": 2026,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Mystery",
+        "Thriller"
+      ],
+      "overview": "After a mysterious cosmic event rips Oak Street from suburbia and transports their neighborhood to someplace unknown, the Platt family soon discovers that their very survival depends on them sticking together as they navigate their now unrecognizable surroundings.",
+      "rating": 7.094,
+      "trailerKey": "u4tgctWuHc0",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "TV 2 Play",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 431,
+          "name": "TV 2 Play"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1101383.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-299536",
+      "title": "Avengers: Infinity War",
+      "year": 2018,
+      "category": "Adventure",
+      "genres": [
+        "Adventure",
+        "Action",
+        "Science Fiction"
+      ],
+      "overview": "As the Avengers and their allies have continued to protect the world from threats too large for any one hero to handle, a new danger has emerged from the cosmic shadows: Thanos. A despot of intergalactic infamy, his goal is to collect all six Infinity Stones, artifacts of unimaginable power, and use them to inflict his twisted will on all of reality. Everything the Avengers have fought for has led up to this moment - the fate of Earth and existence itself has never been more uncertain.",
+      "rating": 8.245,
+      "trailerKey": "QwievZ1Tx-8",
+      "availability": [
+        "Disney Plus",
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "Blockbuster",
+        "SF Anytime",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 337,
+          "name": "Disney Plus"
+        },
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-299536.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
+    {
+      "id": "tmdb-1275779",
+      "title": "Disclosure Day",
+      "year": 2026,
+      "category": "Science Fiction",
+      "genres": [
+        "Science Fiction",
+        "Thriller"
+      ],
+      "overview": "A cybersecurity expert becomes a whistleblower after uncovering secrets about aliens, putting him on the run from a corporation. Meanwhile, a meteorologist experiencing strange phenomena joins forces with him to prove there's life beyond our understanding.",
+      "rating": 7.445,
+      "trailerKey": "icDuEHSxE-w",
+      "availability": [
+        "Viaplay",
+        "Apple TV Store",
+        "Rakuten TV",
+        "SF Anytime",
+        "TV 2 Play",
+        "Amazon Video"
+      ],
+      "providers": [
+        {
+          "id": 76,
+          "name": "Viaplay"
+        },
+        {
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "id": 35,
+          "name": "Rakuten TV"
+        },
+        {
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "id": 431,
+          "name": "TV 2 Play"
+        },
+        {
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "filename": null,
+      "poster": "/catalog/posters/tmdb-1275779.jpg",
+      "tone": "ocean",
+      "moods": []
+    },
     {
       "id": "open-elephants-dream",
       "title": "Elephants Dream",
       "year": 2006,
       "category": "Animation",
-      "genres": ["Animation", "Science Fiction", "Short"],
+      "genres": [
+        "Animation",
+        "Science Fiction",
+        "Short"
+      ],
       "overview": "Two travelers move through an uncanny machine-world in this surreal, open movie.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "elephants-dream.webm",
       "poster": "/catalog/posters/elephants-dream.svg",
       "tone": "violet",
-      "moods": ["curious", "thoughtful"]
+      "moods": [
+        "curious",
+        "thoughtful"
+      ]
     },
     {
       "id": "open-big-buck-bunny",
       "title": "Big Buck Bunny",
       "year": 2008,
       "category": "Animation",
-      "genres": ["Animation", "Comedy", "Short"],
+      "genres": [
+        "Animation",
+        "Comedy",
+        "Short"
+      ],
       "overview": "A gentle giant and three mischievous rodents turn a quiet forest into slapstick chaos.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "big-buck-bunny.webm",
       "poster": "/catalog/posters/big-buck-bunny.svg",
       "tone": "amber",
-      "moods": ["playful", "uplifting"]
+      "moods": [
+        "playful",
+        "uplifting"
+      ]
     },
     {
       "id": "open-sintel",
       "title": "Sintel",
       "year": 2010,
       "category": "Fantasy",
-      "genres": ["Animation", "Fantasy", "Short"],
+      "genres": [
+        "Animation",
+        "Fantasy",
+        "Short"
+      ],
       "overview": "A lone traveler follows a dangerous trail in search of a dragon she once rescued.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "sintel.webm",
       "poster": "/catalog/posters/sintel.svg",
       "tone": "sunset",
-      "moods": ["thrilling", "thoughtful"]
+      "moods": [
+        "thrilling",
+        "thoughtful"
+      ]
     },
     {
       "id": "open-tears-of-steel",
       "title": "Tears of Steel",
       "year": 2012,
       "category": "Science Fiction",
-      "genres": ["Science Fiction", "Action", "Short"],
+      "genres": [
+        "Science Fiction",
+        "Action",
+        "Short"
+      ],
       "overview": "A team reunites in a future Amsterdam to confront a threat that blurs memory and reality.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "tears-of-steel.webm",
       "poster": "/catalog/posters/tears-of-steel.svg",
       "tone": "ocean",
-      "moods": ["energetic", "thrilling"]
+      "moods": [
+        "energetic",
+        "thrilling"
+      ]
     },
     {
       "id": "open-caminandes",
       "title": "Caminandes: Llama Drama",
       "year": 2013,
       "category": "Comedy",
-      "genres": ["Animation", "Comedy", "Short"],
+      "genres": [
+        "Animation",
+        "Comedy",
+        "Short"
+      ],
       "overview": "A determined llama attempts to cross a road guarded by a very territorial penguin.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "caminandes-llama-drama.webm",
       "poster": "/catalog/posters/caminandes.svg",
       "tone": "lime",
-      "moods": ["playful", "uplifting"]
+      "moods": [
+        "playful",
+        "uplifting"
+      ]
     },
     {
       "id": "open-spring",
       "title": "Spring",
       "year": 2019,
       "category": "Fantasy",
-      "genres": ["Animation", "Fantasy", "Short"],
+      "genres": [
+        "Animation",
+        "Fantasy",
+        "Short"
+      ],
       "overview": "A shepherd girl and her dog meet a cycle of change in a mountain valley.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "spring.webm",
       "poster": "/catalog/posters/spring.svg",
       "tone": "sky",
-      "moods": ["cozy", "thoughtful"]
+      "moods": [
+        "cozy",
+        "thoughtful"
+      ]
     },
     {
       "id": "open-cosmos-laundromat",
       "title": "Cosmos Laundromat",
       "year": 2015,
       "category": "Science Fiction",
-      "genres": ["Animation", "Science Fiction", "Short"],
+      "genres": [
+        "Animation",
+        "Science Fiction",
+        "Short"
+      ],
       "overview": "A sheep on an alien shore is offered an impossible bargain and a second beginning.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "cosmos-laundromat.webm",
       "poster": "/catalog/posters/cosmos-laundromat.svg",
       "tone": "violet",
-      "moods": ["curious", "uplifting"]
+      "moods": [
+        "curious",
+        "uplifting"
+      ]
     },
     {
       "id": "open-agent-327",
       "title": "Agent 327: Operation Barbershop",
       "year": 2017,
       "category": "Comedy",
-      "genres": ["Animation", "Comedy", "Short"],
+      "genres": [
+        "Animation",
+        "Comedy",
+        "Short"
+      ],
       "overview": "A secret agent's routine haircut becomes a high-speed escape through Rotterdam.",
       "rating": null,
       "trailerKey": null,
-      "availability": ["Open movie · local copy required"],
+      "availability": [
+        "Open movie · local copy required"
+      ],
       "filename": "agent-327.webm",
       "poster": "/catalog/posters/agent-327.svg",
       "tone": "sunset",
-      "moods": ["playful", "energetic"]
-    },
-    {
-      "id": "afterglow-test-clip",
-      "title": "Afterglow timecode test",
-      "year": 2026,
-      "category": "Test clip",
-      "genres": ["Test clip"],
-      "overview": "A tiny locally generated clip with a visible timecode for sync checks.",
-      "rating": null,
-      "trailerKey": null,
-      "availability": ["Included with this project"],
-      "filename": "afterglow-test.webm",
-      "poster": "/catalog/posters/test-clip.svg",
-      "tone": "sky",
-      "moods": []
+      "moods": [
+        "playful",
+        "energetic"
+      ]
     }
   ]
 }

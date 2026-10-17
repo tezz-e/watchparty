@@ -132,14 +132,18 @@ for (const movie of [...selected.values()].slice(0, 32)) {
 
 await mkdir(posterDirectory, { recursive: true });
 const snapshotDate = new Date().toISOString().slice(0, 10);
+const [snapshotYear, snapshotMonth, snapshotDay] = snapshotDate.split("-").map(Number);
+const snapshotExpiresAt = new Date(Date.UTC(snapshotYear, snapshotMonth + 5, snapshotDay)).toISOString().slice(0, 10);
 const snapshot = {
   snapshotDate,
+  snapshotExpiresAt,
   region,
   source: "TMDB snapshot; streaming availability data by JustWatch.",
   movies: [...movies, ...openMovies],
 };
 const seedInfo = {
   snapshotDate,
+  snapshotExpiresAt,
   region,
   tmdbMovies: movies.length,
   openMovies: openMovies.length,

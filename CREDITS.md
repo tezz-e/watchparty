@@ -5,7 +5,9 @@
 | Asset | Source and license |
 | --- | --- |
 | `media/afterglow-test.webm` | Generated locally with FFmpeg from its built-in synthetic `testsrc2` filter and a burned-in timecode rendered with the locally installed Windows Consolas font. No external footage, soundtrack, or downloaded media. Project test asset; CC0. |
-| `public/catalog/posters/*.svg` | Original, simple vector illustrations created for the offline fallback catalog. Project-authored. |
+| `public/catalog/posters/*.svg` | Original, simple vector illustrations created for the offline open-movie records. Project-authored. |
+| `public/catalog/posters/tmdb-*.jpg` | Poster images downloaded from TMDB for the local Norway catalog snapshot dated 2026-10-17. TMDB content; attributed in the discovery view. Snapshot refresh deadline: 2027-04-17. |
+| `public/catalog/tmdb-blue-long-2.svg` | Official TMDB blue long logo asset from the approved logos linked on the TMDB logos & attribution page. |
 
 ## Catalog titles
 
@@ -17,8 +19,10 @@ The offline fallback lists open-movie projects by title and credits their studio
 
 ## Catalog data
 
-The committed catalog is a hand-authored offline fallback. If it is replaced with a TMDB snapshot, preserve the standard attribution in the app and README:
+The catalog combines 32 TMDB titles for Norway (`NO`) and 8 hand-authored open-movie records. TMDB metadata and posters are stored as a dated local snapshot and are not queried at runtime. Refresh or remove the TMDB snapshot by 2027-04-17.
 
-> This product uses the TMDB API but is not endorsed or certified by TMDB.
+The app displays the TMDB logo and required notice:
 
-Streaming availability metadata must also credit JustWatch. Review the current TMDB and JustWatch terms before running the optional seed script; current TMDB terms could not be retrieved in this environment, so this implementation does not claim that the required terms review was completed.
+> This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.
+
+Streaming availability metadata is powered by TMDB's partnership with JustWatch and is credited in the app. Terms were reviewed before seeding on 2026-10-17. See [TMDB API terms](https://www.themoviedb.org/api-terms-of-use), [TMDB attribution](https://developer.themoviedb.org/docs/faq), and [TMDB watch providers](https://developer.themoviedb.org/reference/movie-watch-providers).

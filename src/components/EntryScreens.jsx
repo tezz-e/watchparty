@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl } from "../data/catalog.js";
-import { catalog, catalogAvailability, catalogCategories, catalogGenres, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
+import { catalog, catalogAvailability, catalogCategories, catalogGenres, catalogSnapshot, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
 import { roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
 import { Avatar, Icon, SoftField, Wordmark } from "./Primitives.jsx";
@@ -131,7 +131,12 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
         {libraryError && <p className="catalog-empty">{libraryError}</p>}
         {!picks.length && <p className="catalog-empty">No close matches. Try another title or category.</p>}
       </div>
-      <p className="catalog-attribution">Offline catalog snapshot. This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data by JustWatch. Service links open the provider home page, not a guaranteed title deep link.</p>
+      <p className="catalog-attribution">
+        <a href="https://www.themoviedb.org/about/logos-attribution" target="_blank" rel="noreferrer" aria-label="TMDB logos and attribution">
+          <img src="/catalog/tmdb-blue-long-2.svg" alt="TMDB"/>
+        </a>
+        <span>Snapshot: {catalogSnapshot.region} · {catalogSnapshot.snapshotDate}. This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB. Streaming availability data by JustWatch.</span>
+      </p>
     </section>
   );
 }
