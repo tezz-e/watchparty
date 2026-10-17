@@ -15,7 +15,8 @@
     "load-test": "node scripts/loadtest.js",
     "seed:catalog": "node scripts/seed-catalog.js",
     "fetch:media": "node scripts/fetch-media.js",
-    "check:media-links": "node scripts/check-media-links.js"
+    "check:media-links": "node scripts/check-media-links.js",
+    "check:cloud": "node scripts/verify-cloud.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.2",

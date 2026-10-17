@@ -21,7 +21,7 @@ export function Identity({ onContinue, theme, onThemeChange }) {
         </section>
         <section className="identity-card signal-border">
           <div className="identity-card-head"><span className="eyebrow">SET YOUR PRESENCE</span><h2>What should we call you?</h2><p>You’ll use this local identity to reconnect to rooms after a drop.</p></div>
-          <label className="field-label">DISPLAY NAME<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Manee" maxLength="28"/></label>
+          <label className="field-label">DISPLAY NAME<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="Your name or nickname" maxLength="28"/></label>
           <div className="tint-row"><span>YOUR SIGNAL COLOUR</span><div>{tints.map(color => <button type="button" key={color} className={`tint-dot ${color} ${tint === color ? "selected" : ""}`} onClick={() => setTint(color)} aria-label={`Choose ${color}`}>{tint === color && <Icon name="check" size={12}/>}</button>)}</div></div>
           <button className="primary-action" disabled={!name.trim()} onClick={() => onContinue({ name: name.trim(), tint })}>Enter the control room <Icon name="arrow"/></button>
           <p className="quiet-note">No account, password, or video is uploaded to Afterglow.</p>
