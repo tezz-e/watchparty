@@ -123,9 +123,13 @@ export default function LiveKitScreen({ roomId, connected, canPublish, requestTi
     }
   };
 
+  if ((status === "unavailable" || status === "connecting") && !sharing) {
+    return null;
+  }
+
   if (hasSource && !sharing && !expanded) {
     return (
-      <div className="livekit-trigger-pill" style={{ position: "absolute", top: 12, right: 12, zIndex: 4, pointerEvents: "auto" }}>
+      <div className="livekit-trigger-pill" style={{ position: "absolute", top: 14, left: 16, zIndex: 4, pointerEvents: "auto" }}>
         <button
           type="button"
           onClick={() => setExpanded(true)}
@@ -171,7 +175,7 @@ export default function LiveKitScreen({ roomId, connected, canPublish, requestTi
             </button>
           )}
           {status === "connected" && !canPublish && <small className="livekit-permission">Host or remote holder can share.</small>}
-          {hasSource && !sharing && (
+          {!sharing && (
             <button
               type="button"
               onClick={() => setExpanded(false)}
