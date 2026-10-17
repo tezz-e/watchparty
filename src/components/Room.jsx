@@ -124,7 +124,6 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             </div>
           </div>
           <div className={`screen-chassis ${provider === "instagram" ? "instagram-active" : ""}`}>
-            <div className="screen-beam"/>
             {provider === "youtube" && <div className="youtube-player"><div ref={youtube}/></div>}
             {(provider === "url" || provider === "hls") && (
               <video
