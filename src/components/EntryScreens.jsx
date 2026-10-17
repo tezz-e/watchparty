@@ -161,6 +161,15 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
         <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>
         <label className="field-label">ROOM NAME<input value={title} onChange={event => setTitle(event.target.value)} maxLength="56"/></label>
         <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video, YouTube, Instagram Reel, or streaming URL" aria-invalid={Boolean(source) && !validSource}/></label>
+        <div className="quick-source-pills">
+          <span>Quick try:</span>
+          <button type="button" onClick={() => { setTitle("Instagram Reel: Cosmic Wonder"); setSource("https://www.instagram.com/reel/C8qA31nO4a5/"); }}>
+            📱 Instagram Reel
+          </button>
+          <button type="button" onClick={() => { setTitle("Blender Nature Short"); setSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ"); }}>
+            ▶️ YouTube Video
+          </button>
+        </div>
         {source && !validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, Instagram Reel link, or a recognized streaming-service link.</p>}
         {mixedContent && <p className="source-error">This HTTPS page cannot play an insecure HTTP stream. Use an HTTPS media URL.</p>}
         {provider === "youtube" && <p className="source-note">YouTube’s official embed player will be used. Some videos cannot be embedded by their owner.</p>}
@@ -189,6 +198,7 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
 export function Queue({ playlist, isHost, selfId, onPlay, onRemove, onAdd, onVote, onMove, mood }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
+  const [customLink, setCustomLink] = useState("");
   const { localItems } = useLocalLibrary();
   const availableFiles = new Set(localItems.map(item => decodeURIComponent(item.source.split("/").pop())));
   const recommendations = mood?.current
@@ -198,9 +208,35 @@ export function Queue({ playlist, isHost, selfId, onPlay, onRemove, onAdd, onVot
       .slice(0, 2)
     : [];
 
+  const handleAddCustom = event => {
+    event.preventDefault();
+    const cleanSource = customLink.trim();
+    if (!cleanSource || !validMediaUrl(cleanSource)) return;
+    const provider = mediaProvider(cleanSource);
+    const title = provider === "instagram" ? "Instagram Reel" : provider === "youtube" ? "YouTube Clip" : "Online Video";
+    onAdd({
+      title,
+      source: cleanSource,
+      category: provider === "instagram" ? "Reels" : "Web",
+      duration: provider === "instagram" ? "Reel" : "--:--",
+    });
+    setCustomLink("");
+  };
+
   return (
     <div className="queue-pane">
       <div className="drawer-head"><span className="eyebrow"><span/>SHARED PLAYLIST</span><h3>{playlist.length ? `${playlist.length} picks on deck.` : "Add the next thing."}</h3></div>
+      <form className="queue-custom-box" onSubmit={handleAddCustom}>
+        <input
+          value={customLink}
+          onChange={e => setCustomLink(e.target.value)}
+          placeholder="Paste Instagram Reel or YouTube URL..."
+          aria-label="Queue media URL"
+        />
+        <button type="submit" disabled={!customLink.trim() || !validMediaUrl(customLink.trim())}>
+          <Icon name="plus" size={13}/> Queue
+        </button>
+      </form>
       {mood?.current && <section className="mood-signal"><span className="eyebrow"><span/>ROOM MOOD · {mood.voters} SIGNAL{mood.voters === 1 ? "" : "S"}</span><b>The room feels {mood.current}.</b><small>Reactions are turning into shared picks.</small>{recommendations.map(item => <button key={item.id} onClick={() => onAdd(item)}>{item.title}<Icon name="plus" size={13}/></button>)}</section>}
       {playlist.length > 0 && <p className="queue-auto-advance">Next up automatically · highest-voted pick wins, then queue order.</p>}
       <div className="queue-list">{playlist.map((item, index) => {
