@@ -67,6 +67,17 @@
   background: radial-gradient(circle at 50% 30%, rgba(225, 48, 108, 0.08), transparent 70%), #0d120e;
 }
 
+.screen-chassis.instagram-active .screen-fallback > span {
+  display: none;
+}
+
+.screen-chassis.instagram-active .watching-rack {
+  top: auto;
+  bottom: 60px;
+  left: 20px;
+  right: auto;
+}
+
 .instagram-reel-stage {
   position: absolute;
   inset: 0;
