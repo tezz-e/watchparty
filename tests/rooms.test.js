@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { after, afterEach, before, test } from "node:test";
@@ -12,6 +15,7 @@ let child;
 let baseUrl;
 let roomCounter = 0;
 let serverOutput = "";
+let mediaDirectory;
 
 async function availablePort() {
   const listener = createServer();
@@ -87,8 +91,11 @@ async function joinRoom(client, roomId) {
 before(async () => {
   const port = await availablePort();
   baseUrl = `http://127.0.0.1:${port}`;
+  mediaDirectory = mkdtempSync(join(tmpdir(), "afterglow-library-"));
+  writeFileSync(join(mediaDirectory, "sample_clip.mp4"), "0123456789");
+  writeFileSync(join(mediaDirectory, "ignore.txt"), "not media");
   child = spawn(process.execPath, [serverFile], {
-    env: { ...process.env, PORT: String(port), RECONNECT_GRACE_MS: "350" },
+    env: { ...process.env, PORT: String(port), RECONNECT_GRACE_MS: "350", MEDIA_DIR: mediaDirectory },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.setEncoding("utf8").on("data", text => { serverOutput += text; });
@@ -104,10 +111,12 @@ afterEach(() => {
 });
 
 after(async () => {
-  if (!child || child.exitCode !== null) return;
-  const exited = new Promise(resolve => child.once("exit", resolve));
-  child.kill();
-  await exited;
+  if (child && child.exitCode === null) {
+    const exited = new Promise(resolve => child.once("exit", resolve));
+    child.kill();
+    await exited;
+  }
+  if (mediaDirectory) rmSync(mediaDirectory, { recursive: true, force: true });
 });
 
 test("room creation is explicit, joins require an existing room, and media URLs are direct MP4/WebM", async () => {
@@ -169,6 +178,48 @@ test("ten clients receive authoritative playback commands and server records del
   const [driftMetrics] = await driftSample;
   assert.equal(driftMetrics.averageDrift, 0.25);
   assert.equal(driftMetrics.maxDrift, 0.25);
+});
+
+test("local library lists video files and serves byte ranges", async () => {
+  const response = await fetch(`${baseUrl}/api/library`, { headers: { Origin: "http://localhost:5173" } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:5173");
+  const items = await response.json();
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, "sample clip");
+  assert.equal(items[0].source, "/media/sample_clip.mp4");
+
+  const partial = await fetch(`${baseUrl}${items[0].source}`, { headers: { Range: "bytes=2-5" } });
+  assert.equal(partial.status, 206);
+  assert.equal(partial.headers.get("content-range"), "bytes 2-5/10");
+  assert.equal(await partial.text(), "2345");
+
+  const unsatisfiable = await fetch(`${baseUrl}${items[0].source}`, { headers: { Range: "bytes=20-30" } });
+  assert.equal(unsatisfiable.status, 416);
+  assert.equal((await fetch(`${baseUrl}/media/ignore.txt`)).status, 404);
+});
+
+test("latency metrics endpoint reports server delivery percentiles", async () => {
+  const host = await connect("metrics-host-0001");
+  await createRoom(host);
+  const before = await (await fetch(`${baseUrl}/metrics/latency`)).json();
+  const update = eventOnce(host.socket, "playback:state");
+  host.socket.emit("playback:update", { playing: true, position: 3, version: 0 });
+  await update;
+
+  const deadline = Date.now() + 2_000;
+  let metrics;
+  do {
+    metrics = await (await fetch(`${baseUrl}/metrics/latency`)).json();
+    if (metrics.sampleCount > before.sampleCount) break;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  } while (Date.now() < deadline);
+
+  assert.ok(metrics.sampleCount > before.sampleCount);
+  assert.ok(metrics.p50Ms >= 0);
+  assert.ok(metrics.p95Ms >= metrics.p50Ms);
+  assert.ok(metrics.p99Ms >= metrics.p95Ms);
+  assert.ok(metrics.timeoutCount >= 0);
 });
 
 test("host-only playback controls and explicit host transfer enforce the active remote", async () => {

@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import { createMemberId, desiredPosition } from "../utils/watchParty.js";
 import { correctionZone, estimateClockOffset } from "../utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../player/htmlVideoPlayer.js";
+import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
@@ -20,7 +21,7 @@ export function useRoomSession(profile, room) {
   const getDesiredPosition = playbackState => desiredPosition(playbackState || state, Date.now(), clockOffsetRef.current);
 
   useEffect(() => {
-    const client = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:3001", { transports: ["websocket", "polling"], reconnection: true });
+    const client = io(serverUrl, { transports: ["websocket", "polling"], reconnection: true });
     socket.current = client;
     const join = () => {
       setConnected(true);

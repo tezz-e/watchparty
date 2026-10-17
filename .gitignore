@@ -4,3 +4,5 @@ dist/
 .env.local
 .env.*
 !.env.example
+/media/*
+!/media/README.md

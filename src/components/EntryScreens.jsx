@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { catalog, demoSource, tints, validMediaUrl } from "../data/catalog.js";
 import { fuzzyMatch, roomId } from "../utils/watchParty.js";
+import { serverUrl } from "../utils/serverUrl.js";
 import { Avatar, Icon, SoftField, Wordmark } from "./Primitives.jsx";
 
 export function Identity({ onContinue }) {
@@ -56,8 +57,32 @@ export function Lobby({ profile, onCreate, onJoin }) {
 }
 
 export function Discovery({ query, setQuery, category, setCategory, onSelect, action = "Add to queue" }) {
-  const categories = ["All", ...new Set(catalog.map(item => item.category))];
-  const picks = catalog.filter(item => (category === "All" || item.category === category) && fuzzyMatch(`${item.title} ${item.category}`, query));
+  const [localItems, setLocalItems] = useState([]);
+  const [libraryError, setLibraryError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadLibrary = async () => {
+      try {
+        const response = await fetch(`${serverUrl}/api/library`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Library request failed with HTTP ${response.status}.`);
+        const items = await response.json();
+        if (!Array.isArray(items)) throw new Error("Library response was not a list.");
+        setLocalItems(items.map(item => ({ ...item, source: `${serverUrl}${item.source}` })));
+        setLibraryError("");
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        console.error("Unable to load the local media library.", error);
+        setLibraryError("The local media library could not be loaded. Check that the watch-party server is running.");
+      }
+    };
+    loadLibrary();
+    return () => controller.abort();
+  }, []);
+
+  const availableItems = [...localItems, ...catalog];
+  const categories = ["All", ...new Set(availableItems.map(item => item.category))];
+  const picks = availableItems.filter(item => (category === "All" || item.category === category) && fuzzyMatch(`${item.title} ${item.category}`, query));
 
   return (
     <section className="discovery">
@@ -65,6 +90,8 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, ac
       <div className="category-row">{categories.map(item => <button type="button" key={item} onClick={() => setCategory(item)} className={category === item ? "active" : ""}>{item}</button>)}</div>
       <div className="catalog-grid">
         {picks.map(item => <button type="button" className={`catalog-card ${item.tone}`} key={item.id} onClick={() => onSelect(item)} aria-label={`${action}: ${item.title}`}><span className="catalog-art"><span>{item.category}</span><b>{item.duration}</b></span><span className="catalog-info"><small>{item.note}</small><strong>{item.title}</strong><span className="catalog-select"><Icon name="plus" size={14}/>{action}</span></span></button>)}
+        {libraryError && <p className="catalog-empty">{libraryError}</p>}
+        {!localItems.length && !libraryError && <p className="catalog-empty">Add authorized MP4 or WebM files to the server’s media/ folder to list them here.</p>}
         {!picks.length && <p className="catalog-empty">No close matches. Try another title or category.</p>}
       </div>
     </section>
