@@ -12,7 +12,7 @@ export function Icon({ name, size = 18 }) {
     sound: "M4 10v4h3l4 3V7l-4 3m3.5.5a3 3 0 0 1 0 3m2-5a6 6 0 0 1 0 7",
     chevron: "m8 10 4 4 4-4",
     share: "M12 16V3m0 0L7 8m5-5 5 5M5 14v5h14v-5",
-    user: "M20 21a8 8 0 0 0-16 0m12-13a4 4 0 1 1-8 0 0 1 8 0Z",
+    user: "M20 21a8 8 0 0 0-16 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
     globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-8-9h16M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
     expand: "M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4",
     queue: "M4 6h16M4 12h16M4 18h10",

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { createMemberId, desiredPosition } from "../utils/watchParty.js";
-import { correctionZone, estimateClockOffset } from "../utils/playbackSync.js";
+import { correctionZone, createClockOffsetEstimator } from "../utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../player/htmlVideoPlayer.js";
 import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
   const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState("");
-  const socket = useRef(null), video = useRef(null), player = useRef(null), clockOffsetRef = useRef(clockOffset), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
+  const socket = useRef(null), video = useRef(null), player = useRef(null), clockOffsetRef = useRef(clockOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
   stateRef.current = state;
   clockOffsetRef.current = clockOffset;
   const hasRemote = state.config?.control === "shared" || state.hostId === selfId;
@@ -51,7 +51,7 @@ export function useRoomSession(profile, room) {
       socket.current?.emit("latency:ping", { clientSentAt }, reply => {
         const clientReceivedAt = Date.now();
         if (reply?.clientSentAt) setLatency(clientReceivedAt - reply.clientSentAt);
-        const offset = estimateClockOffset({ ...reply, clientSentAt, clientReceivedAt });
+        const offset = clockEstimator.current.add({ ...reply, clientSentAt, clientReceivedAt });
         if (offset !== null) setClockOffset(offset);
       });
     };

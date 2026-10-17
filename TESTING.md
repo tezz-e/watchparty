@@ -7,6 +7,15 @@ npm.cmd test
 npm.cmd run build
 ```
 
+For a single-origin production/LAN run, build the client and start the server:
+
+```powershell
+npm.cmd run build
+npm.cmd run server
+```
+
+Open the server URL from each device on the LAN; Socket.IO defaults to that same page origin. For Vite development, `vite.config.js` proxies Socket.IO, library, media, health and metrics requests to `http://localhost:3001`; set `VITE_BACKEND_URL` to override that backend. `VITE_SOCKET_URL` is an optional public explicit socket URL override.
+
 The integration suite starts an isolated server on an available local port and checks:
 
 | Scenario | Verification |

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { correctionZone, estimateClockOffset } from "../src/utils/playbackSync.js";
+import { correctionZone, createClockOffsetEstimator, estimateClockOffset } from "../src/utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../src/player/htmlVideoPlayer.js";
 import { desiredPosition } from "../src/utils/watchParty.js";
 
@@ -20,6 +20,21 @@ test("clock offset estimation rejects incomplete timestamp samples", () => {
     serverSentAt: Number.NaN,
     clientReceivedAt: 1044,
   }), null);
+});
+
+test("clock offset estimator uses median offsets from the lowest-RTT samples", () => {
+  const estimator = createClockOffsetEstimator({ lowestRttCount: 3 });
+  const sample = (offsetMs, roundTripMs) => ({
+    clientSentAt: 1000,
+    serverReceivedAt: 1000 + offsetMs + roundTripMs / 2,
+    serverSentAt: 1000 + offsetMs + roundTripMs / 2,
+    clientReceivedAt: 1000 + roundTripMs,
+  });
+
+  assert.equal(estimator.add(sample(100, 80)), 100);
+  assert.equal(estimator.add(sample(200, 10)), 150);
+  assert.equal(estimator.add(sample(110, 20)), 110);
+  assert.equal(estimator.add(sample(1000, 500)), 110);
 });
 
 test("playback correction classifies the three drift zones and boundaries", () => {

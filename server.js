@@ -1,5 +1,7 @@
 import express from "express";
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
+import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import { registerSocketHandlers } from "./server/handlers.js";
@@ -12,6 +14,8 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: true, methods: ["GET", "POST"] } });
 const PORT = process.env.PORT || 3001;
 const mediaDirectory = process.env.MEDIA_DIR || fileURLToPath(new URL("./media/", import.meta.url));
+const distDirectory = fileURLToPath(new URL("./dist/", import.meta.url));
+const builtClient = fileURLToPath(new URL("./dist/index.html", import.meta.url));
 
 app.use((req, res, next) => {
   const origin = req.get("origin");
@@ -55,6 +59,20 @@ app.get("/media/:filename", (req, res, next) => {
 app.get("/metrics/latency", (_req, res) => {
   res.json(serverLatencyMetrics());
 });
+
+if (existsSync(builtClient)) {
+  app.use(express.static(distDirectory));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || extname(req.path) || req.path.startsWith("/api/") || req.path.startsWith("/media/") || req.path.startsWith("/metrics/")) {
+      next();
+      return;
+    }
+
+    res.sendFile(builtClient, error => {
+      if (error && !res.headersSent) next(error);
+    });
+  });
+}
 
 registerSocketHandlers(io);
 
