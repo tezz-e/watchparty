@@ -1,7 +1,6 @@
 import { chromium } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-
 import { spawn } from "node:child_process";
 
 const localPort = 3001;
@@ -27,9 +26,9 @@ const browser = await chromium.launch({ headless: true });
 
 try {
   // ----------------------------------------------------
-  // 1. Desktop Room View (1440x920)
+  // 1. Desktop Room View (1440x920) - Big Buck Bunny in Amber Theme
   // ----------------------------------------------------
-  console.log("[1/3] Capturing Desktop Room with YouTube & Live Chat...");
+  console.log("[1/3] Capturing Desktop Room with Cinematic Media & Live Chat...");
   const desktopContext = await browser.newContext({
     viewport: { width: 1440, height: 920 },
     deviceScaleFactor: 2,
@@ -47,26 +46,31 @@ try {
   await desktopPage.getByRole("button", { name: /Start a room/i }).click();
   await desktopPage.waitForTimeout(500);
 
-  // Capture Discovery Modal
+  // Capture Discovery Modal (showing Big Buck Bunny available locally)
   await desktopPage.screenshot({ path: path.join(assetsDir, "discovery-catalog.png") });
   console.log("Saved assets/discovery-catalog.png");
 
-  // Click Quick Sample: YouTube Video
-  const ytBtn = desktopPage.getByRole("button", { name: /YouTube Video/i });
-  if (await ytBtn.isVisible()) {
-    await ytBtn.click();
-  } else {
-    await desktopPage.getByPlaceholder(/Paste a video/i).fill("https://www.youtube.com/watch?v=aqz-KE-bpKQ");
-  }
+  // Select the local media file
+  await desktopPage.getByPlaceholder(/Paste a video/i).fill(`${targetUrl}/media/big-buck-bunny.webm`);
   await desktopPage.waitForTimeout(300);
 
   // Click Create Room
   const createBtn = desktopPage.locator(".modal-backdrop .primary-action");
   await createBtn.click();
-  await desktopPage.waitForTimeout(3000);
+  await desktopPage.waitForTimeout(2500);
+
+  // Seek to 3s and play video
+  await desktopPage.evaluate(() => {
+    const v = document.querySelector(".screen-chassis video:not(.livekit-video)");
+    if (v) {
+      v.currentTime = 3;
+      v.play().catch(() => {});
+    }
+  });
+  await desktopPage.waitForTimeout(1000);
 
   // Send a couple chat messages
-  const chatInput = desktopPage.locator(".chat-composer input, .drawer input[type='text'], input[placeholder*='Say something']");
+  const chatInput = desktopPage.locator("input[placeholder*='Say something']");
   if (await chatInput.isVisible()) {
     await chatInput.fill("Synced up! Audio and video are in lockstep 🔥");
     await desktopPage.keyboard.press("Enter");
@@ -74,11 +78,11 @@ try {
   }
 
   // Click a couple emoji reactions
-  const emojis = desktopPage.locator(".emoji-bar button, .reaction-picker button");
+  const emojis = desktopPage.locator(".reaction-dock button");
   const eCount = await emojis.count();
   for (let i = 0; i < Math.min(eCount, 4); i++) {
     await emojis.nth(i).click().catch(() => {});
-    await desktopPage.waitForTimeout(150);
+    await desktopPage.waitForTimeout(120);
   }
 
   await desktopPage.waitForTimeout(1000);
@@ -108,27 +112,37 @@ try {
   await mobilePage.getByRole("button", { name: /Start a room/i }).click();
   await mobilePage.waitForTimeout(400);
 
-  const instaBtn = mobilePage.getByRole("button", { name: /Instagram Reel/i });
-  if (await instaBtn.isVisible()) {
-    await instaBtn.click();
-  } else {
-    await mobilePage.getByPlaceholder(/Paste a video/i).fill("https://www.instagram.com/reel/C8qA31nO4a5/");
-  }
+  // Fill verified working Instagram Reel
+  await mobilePage.getByPlaceholder(/Paste a video/i).fill("https://www.instagram.com/reel/BsOGulcndj-/");
   await mobilePage.waitForTimeout(300);
 
   const mobileCreateBtn = mobilePage.locator(".modal-backdrop .primary-action");
   await mobileCreateBtn.click();
-  await mobilePage.waitForTimeout(3000);
+  await mobilePage.waitForTimeout(3500);
 
-  // Trigger floating reactions
-  const mobileReactionBtns = mobilePage.locator(".floating-reaction-bar button, .reel-controls-hud button, .emoji-bar button");
+  // Trigger floating reactions and mark ready
+  const markReadyBtn = mobilePage.getByRole("button", { name: /Mark me ready/i });
+  if (await markReadyBtn.isVisible()) {
+    await markReadyBtn.click();
+    await mobilePage.waitForTimeout(400);
+  }
+
+  const startCountdownBtn = mobilePage.getByRole("button", { name: /Start 3-2-1/i });
+  if (await startCountdownBtn.isVisible()) {
+    await startCountdownBtn.click();
+    await mobilePage.waitForTimeout(400);
+  }
+
+  const mobileReactionBtns = mobilePage.locator(".floating-reaction-bar button, .reel-controls-hud button, .reaction-dock button");
   const mCount = await mobileReactionBtns.count();
   for (let i = 0; i < Math.min(mCount, 3); i++) {
     await mobileReactionBtns.nth(i).click().catch(() => {});
-    await mobilePage.waitForTimeout(120);
+    await mobilePage.waitForTimeout(100);
   }
 
-  await mobilePage.waitForTimeout(800);
+  // Scroll smoothly back to top so the reel player is front and center
+  await mobilePage.evaluate(() => window.scrollTo(0, 0));
+  await mobilePage.waitForTimeout(4000);
   await mobilePage.screenshot({ path: path.join(assetsDir, "mobile-reel.png") });
   console.log("Saved assets/mobile-reel.png");
   await mobileContext.close();

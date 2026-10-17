@@ -163,7 +163,7 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
         <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video, YouTube, Instagram Reel, or streaming URL" aria-invalid={Boolean(source) && !validSource}/></label>
         <div className="quick-source-pills">
           <span>Quick try:</span>
-          <button type="button" onClick={() => { setTitle("Instagram Reel: Cosmic Wonder"); setSource("https://www.instagram.com/reel/C8qA31nO4a5/"); }}>
+          <button type="button" onClick={() => { setTitle("Instagram Reel Session"); setSource("https://www.instagram.com/reel/BsOGulcndj-/"); }}>
             📱 Instagram Reel
           </button>
           <button type="button" onClick={() => { setTitle("Blender Nature Short"); setSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ"); }}>
