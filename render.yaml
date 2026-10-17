@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: afterglow-watchparty
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: RECONNECT_GRACE_MS
+        value: 15000
