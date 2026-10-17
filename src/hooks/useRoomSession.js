@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { createMemberId, desiredPosition } from "../utils/watchParty.js";
+import { correctionZone, estimateClockOffset } from "../utils/playbackSync.js";
+import { createHtmlVideoPlayer } from "../player/htmlVideoPlayer.js";
 
 export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: { question: "What should we watch next?", options: ["Keep the current pick", "Choose from the queue"], votes: {} }, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
-  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [notice, setNotice] = useState("");
-  const socket = useRef(null), video = useRef(null), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
+  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState("");
+  const socket = useRef(null), video = useRef(null), player = useRef(null), clockOffsetRef = useRef(clockOffset), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
   stateRef.current = state;
+  clockOffsetRef.current = clockOffset;
   const hasRemote = state.config?.control === "shared" || state.hostId === selfId;
   const config = state.config || room;
   const applyState = next => setState(previous => ({ ...previous, ...next, config: next.config ? { ...previous.config, ...next.config } : previous.config, playlist: next.playlist || previous.playlist, poll: next.poll || previous.poll }));
+  const getPlayer = () => {
+    if (!player.current && video.current) player.current = createHtmlVideoPlayer(video.current);
+    return player.current;
+  };
+  const getDesiredPosition = playbackState => desiredPosition(playbackState || state, Date.now(), clockOffsetRef.current);
 
   useEffect(() => {
     const client = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:3001", { transports: ["websocket", "polling"], reconnection: true });
@@ -36,27 +44,58 @@ export function useRoomSession(profile, room) {
 
   useEffect(() => { if (!notice) return; const timeout = setTimeout(() => setNotice(""), 3600); return () => clearTimeout(timeout); }, [notice]);
   useEffect(() => { if (!reaction) return; const timeout = setTimeout(() => setReaction(null), 900); return () => clearTimeout(timeout); }, [reaction]);
-  useEffect(() => { const probe = () => socket.current?.emit("latency:ping", { clientSentAt: Date.now() }, reply => { if (reply?.clientSentAt) setLatency(Date.now() - reply.clientSentAt); }); probe(); const interval = setInterval(probe, 5000); return () => clearInterval(interval); }, []);
   useEffect(() => {
-    const player = video.current; if (!player) return;
-    const target = desiredPosition(state); const drift = target - player.currentTime;
-    if (Math.abs(drift) > .5) player.currentTime = target;
-    if (state.playing) player.play().catch(() => setNotice("Tap play once to allow this browser to start media.")); else player.pause();
-  }, [state.playing, state.position, state.updatedAt, config.source]);
+    const probe = () => {
+      const clientSentAt = Date.now();
+      socket.current?.emit("latency:ping", { clientSentAt }, reply => {
+        const clientReceivedAt = Date.now();
+        if (reply?.clientSentAt) setLatency(clientReceivedAt - reply.clientSentAt);
+        const offset = estimateClockOffset({ ...reply, clientSentAt, clientReceivedAt });
+        if (offset !== null) setClockOffset(offset);
+      });
+    };
+    probe();
+    const interval = setInterval(probe, 5000);
+    return () => clearInterval(interval);
+  }, []);
+  useEffect(() => {
+    const mediaPlayer = getPlayer(); if (!mediaPlayer) return;
+    if (state.playing) mediaPlayer.play().catch(() => setNotice("Tap play once to allow this browser to start media."));
+    else mediaPlayer.pause();
+  }, [state.playing, config.source]);
+  useEffect(() => {
+    const correctPlayback = () => {
+      const mediaPlayer = getPlayer(); if (!mediaPlayer) return;
+      const drift = getDesiredPosition() - mediaPlayer.currentTime();
+      if (!Number.isFinite(drift)) return;
+      const zone = correctionZone(drift);
+      if (zone === "seek") {
+        mediaPlayer.seek(getDesiredPosition());
+        mediaPlayer.setPlaybackRate(1);
+      } else if (zone === "rate") {
+        mediaPlayer.setPlaybackRate(Math.max(0.95, Math.min(1.05, 1 + drift * 0.1)));
+      } else {
+        mediaPlayer.setPlaybackRate(1);
+      }
+    };
+    correctPlayback();
+    const interval = setInterval(correctPlayback, 250);
+    return () => clearInterval(interval);
+  }, [state.playing, state.position, state.updatedAt, config.source, clockOffset]);
 
   const send = (event, payload) => socket.current?.emit(event, payload);
   const sendPlayback = (playing, position) => { if (!hasRemote) return setNotice("The host has the remote."); socket.current?.emit("playback:update", { playing, position, version: stateRef.current.version, sentAt: Date.now() }); };
-  const onTime = event => {
+  const onTime = () => {
     const timestamp = Date.now();
     if (timestamp - lastDriftSample.current >= 2000) {
       lastDriftSample.current = timestamp;
-      socket.current?.emit("sync:drift", { drift: desiredPosition(stateRef.current) - event.currentTarget.currentTime });
+      socket.current?.emit("sync:drift", { drift: getDesiredPosition(stateRef.current) - getPlayer().currentTime() });
     }
     if (!hasRemote || !stateRef.current.playing || timestamp - lastHeartbeat.current < 2000) return;
     lastHeartbeat.current = timestamp;
-    sendPlayback(true, event.currentTarget.currentTime);
+    sendPlayback(true, getPlayer().currentTime());
   };
   const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, hasRemote, config, send, sendPlayback, onTime, share };
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback, onTime, share };
 }

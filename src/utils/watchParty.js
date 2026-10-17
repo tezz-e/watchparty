@@ -23,4 +23,4 @@ export function fuzzyMatch(text, query) {
 
 export const roomId = () => `room-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36).slice(0, 6)}`;
 export const formatTime = (seconds = 0) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
-export const desiredPosition = state => state.playing ? state.position + Math.max(0, Date.now() - state.updatedAt) / 1000 : state.position;
+export const desiredPosition = (state, clientNow = Date.now(), clockOffsetMs = 0) => state.playing ? state.position + Math.max(0, clientNow + clockOffsetMs - state.updatedAt) / 1000 : state.position;
