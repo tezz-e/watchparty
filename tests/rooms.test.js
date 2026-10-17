@@ -182,6 +182,26 @@ test("YouTube links can create rooms, enter the shared playlist, and report fail
   assert.equal(unexpectedFailure, false);
 });
 
+test("HLS and recognized streaming links can create rooms; arbitrary pages remain rejected", async () => {
+  const host = await connect("provider-host-0001");
+  const playlistPage = eventOnce(host.socket, "room:error");
+  host.socket.emit("room:create", {
+    roomId: "external-invalid",
+    memberId: host.memberId,
+    name: host.name,
+    title: "Invalid external link",
+    source: "https://unknown.example/watch/123",
+  });
+  assert.equal((await playlistPage)[0].code, "invalid-source");
+
+  const hlsRoom = await createRoom(host, { source: "https://media.example/live/master.m3u8?token=sample" });
+  assert.equal(hlsRoom.state.config.source, "https://media.example/live/master.m3u8?token=sample");
+
+  const externalHost = await connect("external-host-0001");
+  const externalRoom = await createRoom(externalHost, { source: "https://www.netflix.com/title/80057281" });
+  assert.equal(externalRoom.state.config.source, "https://www.netflix.com/title/80057281");
+});
+
 test("ten clients receive authoritative playback commands and server records delivery and drift", async () => {
   const host = await connect("group-host-0001");
   const { roomId } = await createRoom(host);

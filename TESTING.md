@@ -21,7 +21,7 @@ The integration suite starts an isolated server on an available local port and c
 | Scenario | Verification |
 | --- | --- |
 | Room lifecycle | Creating a room is distinct from joining one; unknown and duplicate room IDs are rejected. |
-| Media rules | Direct HTTP(S) `.mp4`/`.webm` URLs and supported YouTube watch, youtu.be, shorts, live, and embed URLs are accepted; unrelated page URLs are rejected. |
+| Media rules | Direct HTTP(S) `.mp4`/`.webm`/`.m3u8` URLs, supported YouTube links, and configured streaming-platform links are accepted; unrelated pages and deceptive domains are rejected. |
 | Ten-client sync | Ten connected clients receive the same accepted playback state. |
 | Capacity | A 21st online participant is rejected; room capacity is 20. |
 | Late join | A joining client receives the server's current source and playhead. |
@@ -34,6 +34,8 @@ The integration suite starts an isolated server on an available local port and c
 The client estimates its clock offset from the server timestamps in the latency ping response and uses that offset when calculating the canonical playhead. Playback correction runs every 250 ms in three zones: drift up to 80 ms is left alone, drift above 80 ms through 500 ms is corrected by adjusting playback rate within 0.95-1.05, and drift above 500 ms is corrected with a seek. `tests/playback-sync.test.js` covers offset estimation, zone boundaries, offset-adjusted playhead calculation, and the HTML video adapter.
 
 YouTube sources use the official IFrame Player API in each participant's browser; Afterglow does not fetch, relay, or download the video. Supported links include `youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`, `/live/…`, and `/embed/…`. Private, removed, or embedding-disabled videos report a room-visible error. Buffering presence is shown in the People panel. The YouTube player only accepts discrete playback rates, so this client does not rate-nudge it: it tolerates drift up to 500 ms and seeks beyond that. Successful playback still depends on the video's embed permissions, browser policy, and network access to YouTube.
+
+HLS `.m3u8` URLs are played with the browser's native HLS support when available (Safari), otherwise with hls.js. The stream host must allow cross-origin requests for its manifest and segments; fatal network/CORS and decode errors are reported in the room. HTTP HLS media is blocked when the app is served over HTTPS, with a prompt to use HTTPS. Pasting a recognized streaming-platform URL (configured in `shared/streamingPlatforms.js`) offers a sync-only room that opens the deep link for each participant; it does not embed, inspect, or control that site's player. The fuller ready-check and countdown flow is a later milestone.
 
 Place authorized `.mp4` or `.webm` files in `media/`; the directory listing appears in discovery and supports byte-range seeking. Files in that directory are ignored by Git. Delivery metrics are retained in a bounded 10,000-sample window while the sample and timeout counters remain cumulative for the server process.
 

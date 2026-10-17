@@ -34,7 +34,6 @@ export function youtubeErrorMessage(code) {
   if (code === 153) return "YouTube could not verify this embed request. Check the site’s referrer settings.";
   if (code === 2) return "YouTube rejected this video ID.";
   if (code === 5) return "YouTube’s HTML5 player could not play this video.";
-  if (code === "media-load") return "This participant’s browser could not load the media source.";
   if (code === "api-unavailable") return "YouTube’s player API could not be loaded. Check network access and try again.";
   return "The YouTube player could not be loaded.";
 }

@@ -4,7 +4,8 @@ import { createMemberId, desiredPosition } from "../utils/watchParty.js";
 import { correctionZone, createClockOffsetEstimator } from "../utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../player/htmlVideoPlayer.js";
 import { createYoutubePlayer, youtubeErrorMessage } from "../player/youtubePlayer.js";
-import { mediaProvider, youtubeVideoId } from "../data/catalog.js";
+import { createHlsPlayer, hlsErrorMessage, mediaErrorMessage } from "../player/hlsPlayer.js";
+import { isMixedContent, mediaProvider, streamingPlatform, youtubeVideoId } from "../data/catalog.js";
 import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
@@ -46,7 +47,7 @@ export function useRoomSession(profile, room) {
     client.on("mood:update", mood => setState(previous => ({ ...previous, mood })));
     client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
     client.on("room:error", error => setNotice(error.message));
-    client.on("media:failure", ({ name, code }) => setNotice(`${name} could not play this video: ${youtubeErrorMessage(code)} (${code}).`));
+    client.on("media:failure", ({ name, code }) => setNotice(`${name} could not play this video: ${mediaErrorMessage(code)}`));
     return () => client.close();
   }, [profile.name, room.id]);
 
@@ -95,10 +96,35 @@ export function useRoomSession(profile, room) {
         if (player.current === mediaPlayer) player.current = null;
       };
     }
-    if (provider === "url" && video.current) {
-      const mediaPlayer = createHtmlVideoPlayer(video.current);
+    if ((provider === "url" || provider === "hls") && video.current) {
+      if (provider === "hls" && isMixedContent(config.source, window.location.protocol)) {
+        setNotice(hlsErrorMessage("mixed-content"));
+        reportMediaFailure("mixed-content");
+        return;
+      }
+      const mediaPlayer = provider === "hls"
+        ? createHlsPlayer(video.current, config.source, {
+          onError: code => {
+            reportBuffering(false);
+            reportMediaFailure(code);
+            setNotice(hlsErrorMessage(code));
+          },
+          onBuffering: reportBuffering,
+        })
+        : createHtmlVideoPlayer(video.current);
       player.current = mediaPlayer;
+      if (provider === "hls") {
+        mediaPlayer.ready.then(() => {
+          if (player.current !== mediaPlayer) return;
+          mediaPlayer.seek(getDesiredPosition(stateRef.current));
+          if (stateRef.current.playing) {
+            const result = mediaPlayer.play();
+            result?.catch?.(() => setNotice("Tap play once to allow this browser to start media."));
+          }
+        });
+      }
       return () => {
+        if (provider === "hls") mediaPlayer.destroy();
         if (player.current === mediaPlayer) player.current = null;
       };
     }
@@ -160,5 +186,5 @@ export function useRoomSession(profile, room) {
   }, [provider, config.source, hasRemote]);
   const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share };
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share };
 }

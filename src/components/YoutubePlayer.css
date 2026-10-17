@@ -30,3 +30,48 @@
   font-size: 11px;
   line-height: 1.5;
 }
+
+.screen-chassis .external-sync-panel {
+  position: absolute;
+  inset: 9px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 40%, #29362a, #101510 72%);
+}
+
+.external-sync-panel h2 {
+  margin: 18px 0 8px;
+  color: #eef2e9;
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 500;
+}
+
+.external-sync-panel p {
+  max-width: 420px;
+  margin: 0 0 18px;
+  color: #a9b2a5;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.external-sync-panel a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 13px;
+  border: 1px solid #61744e;
+  border-radius: 5px;
+  color: #d8ff9e;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.external-sync-panel a:hover {
+  border-color: #c8ff76;
+}
