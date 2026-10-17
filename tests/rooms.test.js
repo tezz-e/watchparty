@@ -221,6 +221,10 @@ test("HLS and recognized streaming links can create rooms; arbitrary pages remai
   const externalHost = await connect("external-host-0001");
   const externalRoom = await createRoom(externalHost, { source: "https://www.netflix.com/title/80057281" });
   assert.equal(externalRoom.state.config.source, "https://www.netflix.com/title/80057281");
+
+  const instagramHost = await connect("ig-host-0001");
+  const igRoom = await createRoom(instagramHost, { source: "https://www.instagram.com/reel/C8XYZ12345/" });
+  assert.equal(igRoom.state.config.source, "https://www.instagram.com/reel/C8XYZ12345/");
 });
 
 test("ten clients receive authoritative playback commands and server records delivery and drift", async () => {

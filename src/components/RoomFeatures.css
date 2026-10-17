@@ -56,3 +56,162 @@
   .reaction-dock{flex-wrap:wrap;justify-content:flex-end}
   .reaction-dock button{width:29px}
 }
+
+/* Instagram Reel Player Stage & Liquid Glass View */
+.screen-chassis.instagram-active {
+  aspect-ratio: auto;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 30%, rgba(225, 48, 108, 0.08), transparent 70%), #0d120e;
+}
+
+.instagram-reel-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  padding: 12px 12px 75px;
+}
+
+.instagram-reel-card {
+  width: 100%;
+  max-width: 350px;
+  height: calc(100% - 12px);
+  max-height: 460px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: #000;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.instagram-reel-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+  border-radius: 16px;
+}
+
+.instagram-meta-overlay {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.instagram-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(14, 18, 14, 0.85);
+  border: 1px solid rgba(200, 255, 118, 0.25);
+  backdrop-filter: blur(10px);
+  color: #dce5d7;
+  font: 8px "DM Mono";
+  letter-spacing: 0.6px;
+  pointer-events: auto;
+}
+
+.instagram-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(18, 24, 18, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  color: #e5ede0;
+  font: 9px "DM Mono";
+  text-decoration: none;
+  pointer-events: auto;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s;
+}
+
+.instagram-open-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--theme-border, #94bb60);
+  color: var(--theme-highlight, #d7ff9a);
+}
+
+/* Dynamic Island & Telemetry Enhancement */
+.room-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(18, 24, 19, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 3px 10px rgba(0, 0, 0, 0.35);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s, box-shadow 0.3s;
+}
+
+.room-status:hover {
+  transform: scale(1.03);
+  border-color: var(--theme-border, #94bb60);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 18px color-mix(in srgb, var(--theme-accent, #c8ff76) 18%, transparent);
+}
+
+/* Tactile Spring Reactions & Buttons */
+.reaction-dock button {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s, background-color 0.2s;
+}
+
+.reaction-dock button:hover {
+  transform: translateY(-4px) scale(1.08);
+}
+
+.reaction-dock button:active {
+  transform: scale(0.9);
+}
+
+.primary-action:active:not(:disabled),
+.secondary-action:active:not(:disabled),
+.invite-compact:active,
+.transport-play:active:not(:disabled) {
+  transform: scale(0.96) !important;
+  transition-duration: 0.1s !important;
+}
+
+/* Tactile Hardware Drawer Tabs */
+.drawer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: #111612;
+  border: 1px solid #283327;
+  border-bottom: 1px solid #283327;
+}
+
+.drawer-tabs button {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 6px;
+  border: 0;
+  transition: background 0.2s, color 0.2s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.drawer-tabs button.active {
+  background: #1d251c;
+  color: var(--theme-highlight, #d7ff9a);
+  border-bottom: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.35);
+}

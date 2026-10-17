@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField, ThemeSelect } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
-import { tints } from "../data/catalog.js";
+import { instagramReelId, tints } from "../data/catalog.js";
 import { formatTime } from "../utils/watchParty.js";
 import { useRoomSession } from "../hooks/useRoomSession.js";
 import "./YoutubePlayer.css";
@@ -28,7 +28,8 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const votes = Object.values(poll?.votes || {});
   const voteCount = votes.length;
   const player = getPlayer();
-  const duration = provider === "external" ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
+  const isSyncOnly = provider === "external" || provider === "instagram";
+  const duration = isSyncOnly ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
   const position = getDesiredPosition();
   const telemetry = state.telemetry || {};
   const onlineMembers = members.filter(member => member.online);
@@ -36,12 +37,13 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const countdownSeconds = state.externalCountdown
     ? Math.max(0, (state.externalCountdown.startsAt - getServerNow()) / 1000)
     : null;
+  const reelId = provider === "instagram" ? instagramReelId(config.source) : null;
 
   useEffect(() => {
-    if (provider !== "external" || !state.externalCountdown) return undefined;
+    if (!isSyncOnly || !state.externalCountdown) return undefined;
     const interval = setInterval(() => setCountdownTick(value => value + 1), 100);
     return () => clearInterval(interval);
-  }, [provider, state.externalCountdown?.startsAt]);
+  }, [isSyncOnly, state.externalCountdown?.startsAt]);
 
   return (
     <SoftField className="room-page" theme={theme}>
@@ -50,7 +52,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
         <Wordmark/>
         <div className="room-actions">
           <ThemeSelect theme={theme} onChange={onThemeChange}/>
-          <div className="room-status">
+          <div className="room-status" title={`${latency ?? "—"}ms latency · ${onlineMembers.length} member(s) online`}>
             <span className={connected ? "status-led" : "status-led dim"}/>
             <span>{connected ? "LIVE SYNC" : "RECONNECTING"}</span>
             <b>{latency === null ? "— ms" : `${latency} ms`}</b>
@@ -65,9 +67,9 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
         <section className="view-deck">
           <div className="now-line">
             <span>NOW PLAYING</span><b>{config.title}</b><i/>
-            <span>{provider === "external" ? "SHARED CLOCK ONLY" : hasRemote ? "YOU HAVE THE REMOTE" : "HOST HAS THE REMOTE"}</span>
+            <span>{provider === "external" ? "SHARED CLOCK ONLY" : provider === "instagram" ? "INSTAGRAM REELS SYNC" : hasRemote ? "YOU HAVE THE REMOTE" : "HOST HAS THE REMOTE"}</span>
           </div>
-          <div className="screen-chassis">
+          <div className={`screen-chassis ${provider === "instagram" ? "instagram-active" : ""}`}>
             <div className="screen-beam"/>
             {provider === "youtube" && <div className="youtube-player"><div ref={youtube}/></div>}
             {(provider === "url" || provider === "hls") && (
@@ -91,6 +93,30 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 <a href={config.source} target="_blank" rel="noreferrer">Open {platform?.name}<Icon name="arrow" size={15}/></a>
               </div>
             )}
+            {provider === "instagram" && (
+              <div className="instagram-reel-stage">
+                <div className="instagram-reel-card">
+                  <iframe
+                    className="instagram-reel-frame"
+                    src={`https://www.instagram.com/reel/${reelId || "reel"}/embed/`}
+                    title={config.title || "Instagram Reel"}
+                    scrolling="no"
+                    allowFullScreen
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                  />
+                </div>
+                <div className="instagram-meta-overlay">
+                  <div className="instagram-badge">
+                    <span className="live-pulse"/>
+                    <span>INSTAGRAM REEL · SYNCED</span>
+                  </div>
+                  <a href={config.source} target="_blank" rel="noreferrer" className="instagram-open-btn">
+                    <span>Open on Instagram</span>
+                    <Icon name="external" size={13}/>
+                  </a>
+                </div>
+              </div>
+            )}
             <div className="screen-fallback">
               <span>{config.source ? "READY TO SYNCHRONIZE" : "CHOOSE A VIDEO FROM THE QUEUE"}</span>
               <div className="orbital-art"><i/><i/><i/></div>
@@ -103,7 +129,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               <span>{members.filter(member => member.online).length || 1} IN ROOM</span>
             </div>
             <div className="transport">
-              <button className="transport-play" disabled={!hasRemote || (provider === "external" && !state.externalStarted)} onClick={togglePlayback}>
+              <button className="transport-play" disabled={!hasRemote || (isSyncOnly && !state.externalStarted)} onClick={togglePlayback}>
                 <Icon name={state.playing ? "pause" : "play"} size={18}/>
               </button>
               <span>{formatTime(position)}</span>
@@ -118,23 +144,23 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                   ))}
                 </div>
                 <input
-                  disabled={!hasRemote || (provider === "external" && !state.externalStarted)}
+                  disabled={!hasRemote || (isSyncOnly && !state.externalStarted)}
                   type="range"
                   min="0"
                   max={duration}
-                  step={provider === "external" ? "1" : ".1"}
+                  step={isSyncOnly ? "1" : ".1"}
                   value={Math.min(position, duration)}
                   onChange={event => {
                     const nextPosition = Number(event.target.value);
                     player?.seek(nextPosition);
-                    sendPlayback(state.playing, provider === "external"
+                    sendPlayback(state.playing, isSyncOnly
                       ? Math.max(0, nextPosition - localOffset)
                       : nextPosition);
                   }}
                   style={{ "--track": `${Math.min(position / duration * 100, 100)}%` }}
                 />
               </div>
-              <span>{provider === "external" ? "ROOM CLOCK" : Number.isFinite(player?.duration()) ? formatTime(player.duration()) : "--:--"}</span>
+              <span>{isSyncOnly ? (provider === "instagram" ? "REEL CLOCK" : "ROOM CLOCK") : Number.isFinite(player?.duration()) ? formatTime(player.duration()) : "--:--"}</span>
               <button className="plain-icon"><Icon name="sound"/></button>
               <button className="plain-icon"><Icon name="expand"/></button>
             </div>
@@ -152,11 +178,11 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               <LiveKitScreen roomId={room.id} connected={connected} canPublish={hasRemote} requestTicket={requestScreenTicket}/>
             </Suspense>
           </div>
-          {provider === "external" && (
+          {isSyncOnly && (
             <section className="external-room-controls">
               <div className="external-controls-copy">
-                <span className="eyebrow"><span/>SYNC-ONLY READY CHECK</span>
-                <p>Afterglow cannot control or inspect the streaming service. Open the title in your own account, then mark yourself ready.</p>
+                <span className="eyebrow"><span/>{provider === "instagram" ? "REELS PLAYBACK SYNC" : "SYNC-ONLY READY CHECK"}</span>
+                <p>{provider === "instagram" ? "Everyone gets ready together. When the host fires the 3-2-1 countdown, everyone starts watching together at 0s. Send live floating emoji reactions and chat!" : "Afterglow cannot control or inspect the streaming service. Open the title in your own account, then mark yourself ready."}</p>
                 <div className="external-ready-list">
                   {onlineMembers.map(member => <span key={member.id} className={member.externalReady ? "ready" : ""}>{member.name} · {member.externalReady ? "READY" : "NOT READY"}</span>)}
                   {!onlineMembers.length && <span>Waiting for participants…</span>}
@@ -186,7 +212,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 <b>{localOffset > 0 ? "+" : ""}{localOffset.toFixed(2)}s</b>
                 <button aria-label="Nudge my clock later" onClick={() => updateLocalOffset(localOffset + 0.25)}>+</button>
                 <button className="offset-reset" onClick={() => updateLocalOffset(0)}>Reset</button>
-                <small>Only your shared clock changes, not the streaming player.</small>
+                <small>{provider === "instagram" ? "Nudge your local clock if your device video started slightly ahead or behind." : "Only your shared clock changes, not the streaming player."}</small>
               </div>
             </section>
           )}

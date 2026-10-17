@@ -1,7 +1,9 @@
 import { streamingPlatforms } from "./streamingPlatforms.js";
 
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com"]);
+const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com", "instagr.am", "www.instagr.am"]);
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+const INSTAGRAM_ID_PATTERN = /^[A-Za-z0-9_-]{5,35}$/;
 
 function webUrl(value) {
   if (typeof value !== "string" || !value) return null;
@@ -33,6 +35,14 @@ export function youtubeVideoId(value) {
   return videoId && VIDEO_ID_PATTERN.test(videoId) ? videoId : null;
 }
 
+export function instagramReelId(value) {
+  const url = webUrl(value);
+  if (!url || !INSTAGRAM_HOSTS.has(url.hostname.toLowerCase())) return null;
+  const match = url.pathname.match(/^\/(?:reel|reels|p|tv)\/([^/]+)\/?$/i);
+  const id = match?.[1] || null;
+  return id && INSTAGRAM_ID_PATTERN.test(id) ? id : null;
+}
+
 export function streamingPlatform(value) {
   const url = webUrl(value);
   if (!url) return null;
@@ -47,6 +57,7 @@ export function streamingPlatform(value) {
 
 export function mediaProvider(value) {
   if (youtubeVideoId(value)) return "youtube";
+  if (instagramReelId(value)) return "instagram";
   const url = webUrl(value);
   if (!url) return null;
   if (/\.(mp4|webm)$/i.test(url.pathname)) return "url";

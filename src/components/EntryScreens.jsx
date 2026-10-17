@@ -152,7 +152,7 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
   const platform = streamingPlatform(source);
   const mixedContent = isMixedContent(source, window.location.protocol);
   const canCreate = validSource && !mixedContent && Boolean(title.trim());
-  const providerLabel = provider === "youtube" ? "YOUTUBE VIDEO URL" : provider === "hls" ? "HLS STREAM URL" : provider === "external" ? `${platform?.name.toUpperCase()} LINK` : "VIDEO URL";
+  const providerLabel = provider === "youtube" ? "YOUTUBE VIDEO URL" : provider === "hls" ? "HLS STREAM URL" : provider === "instagram" ? "INSTAGRAM REEL / POST LINK" : provider === "external" ? `${platform?.name.toUpperCase()} LINK` : "VIDEO URL";
 
   return (
     <div className="modal-backdrop" data-theme={theme}>
@@ -160,10 +160,11 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
         <button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button>
         <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>
         <label className="field-label">ROOM NAME<input value={title} onChange={event => setTitle(event.target.value)} maxLength="56"/></label>
-        <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video or streaming-service URL" aria-invalid={Boolean(source) && !validSource}/></label>
-        {source && !validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, or a recognized streaming-service link.</p>}
+        <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video, YouTube, Instagram Reel, or streaming URL" aria-invalid={Boolean(source) && !validSource}/></label>
+        {source && !validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, Instagram Reel link, or a recognized streaming-service link.</p>}
         {mixedContent && <p className="source-error">This HTTPS page cannot play an insecure HTTP stream. Use an HTTPS media URL.</p>}
         {provider === "youtube" && <p className="source-note">YouTube’s official embed player will be used. Some videos cannot be embedded by their owner.</p>}
+        {provider === "instagram" && <p className="source-note">Instagram Reel embedded player with synced countdown, shared room clock, live emoji reactions, and chat.</p>}
         {provider === "hls" && !mixedContent && <p className="source-note">HLS plays through the browser’s native player or hls.js. The media host must allow cross-origin requests from this site.</p>}
         {provider === "external" && <p className="source-note">This is a sync-only room for {platform.name}. Everyone opens the link in their own account; Afterglow cannot control that site’s player.</p>}
         <Discovery
@@ -179,7 +180,7 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
           }}
         />
         <fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control === "host" ? "chosen" : ""} onClick={() => setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control === "shared" ? "chosen" : ""} onClick={() => setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset>
-        <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : "Create the room"} <Icon name="arrow"/></button>
+        <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : provider === "instagram" ? "Create Reels room" : "Create the room"} <Icon name="arrow"/></button>
       </form>
     </div>
   );

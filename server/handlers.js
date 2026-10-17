@@ -19,6 +19,10 @@ import { mediaProvider } from "../shared/media.js";
 import { canPublishScreen, liveKitService } from "./livekit.js";
 
 const moodByEmoji = { "✨": "uplifting", "♥": "cozy", "⚡": "energetic", "👏": "thrilling", "😂": "playful" };
+const isSyncOnly = source => {
+  const provider = mediaProvider(source);
+  return provider === "external" || provider === "instagram";
+};
 
 export function registerSocketHandlers(io) {
   const publishPresence = room => io.to(room.id).emit("room:presence", memberList(room));
@@ -121,7 +125,7 @@ export function registerSocketHandlers(io) {
       const room = roomFor(socket);
       if (!room) return;
       settleExternalCountdown(room);
-      const externalRoom = mediaProvider(room.config.source) === "external";
+      const externalRoom = isSyncOnly(room.config.source);
       if ((externalRoom || room.config.control !== "shared") && !isHost(room, socket)) return reject(socket, "host-controls", "The host has the remote.");
       if (externalRoom && Boolean(playing) && !room.externalStarted) {
         return reject(socket, "external-countdown-required", "Use the ready check to start a sync-only room.");
@@ -176,7 +180,7 @@ export function registerSocketHandlers(io) {
       const room = roomFor(socket);
       if (room) settleExternalCountdown(room);
       const member = room?.members.get(socket.data.memberId);
-      if (!room || !member || mediaProvider(room.config.source) !== "external" || typeof ready !== "boolean") {
+      if (!room || !member || !isSyncOnly(room.config.source) || typeof ready !== "boolean") {
         return reject(socket, "external-ready-unavailable", "The ready check is only available in sync-only rooms.");
       }
       member.externalReady = ready;
@@ -191,7 +195,7 @@ export function registerSocketHandlers(io) {
 
     socket.on("external:countdown", () => {
       const room = roomFor(socket);
-      if (!room || mediaProvider(room.config.source) !== "external") {
+      if (!room || !isSyncOnly(room.config.source)) {
         return reject(socket, "external-countdown-unavailable", "The countdown is only available in sync-only rooms.");
       }
       settleExternalCountdown(room);
@@ -219,7 +223,7 @@ export function registerSocketHandlers(io) {
     socket.on("external:countdown-cancel", () => {
       const room = roomFor(socket);
       if (room) settleExternalCountdown(room);
-      if (!room || mediaProvider(room.config.source) !== "external") return;
+      if (!room || !isSyncOnly(room.config.source)) return;
       if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can cancel the room countdown.");
       if (!room.externalCountdown || room.externalCountdown.startsAt <= now()) return;
       room.externalCountdown = null;

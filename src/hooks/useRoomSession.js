@@ -17,7 +17,8 @@ export function useRoomSession(profile, room) {
   localOffsetRef.current = localOffset;
   const config = state.config || room;
   const provider = mediaProvider(config.source);
-  const hasRemote = provider === "external"
+  const isSyncOnly = provider === "external" || provider === "instagram";
+  const hasRemote = isSyncOnly
     ? state.hostId === selfId
     : state.config?.control === "shared" || state.hostId === selfId;
   const applyState = next => setState(previous => ({
@@ -32,7 +33,7 @@ export function useRoomSession(profile, room) {
   const getPlayer = () => player.current;
   const getDesiredPosition = playbackState => {
     const desired = getCanonicalPosition(playbackState);
-    return provider === "external" ? applyLocalClockOffset(desired, localOffsetRef.current) : desired;
+    return isSyncOnly ? applyLocalClockOffset(desired, localOffsetRef.current) : desired;
   };
   const getCanonicalPosition = playbackState => desiredPosition(playbackState || state, Date.now(), clockOffsetRef.current);
   const updateLocalOffset = offset => {
@@ -210,7 +211,7 @@ export function useRoomSession(profile, room) {
       const result = getPlayer()?.play();
       result?.catch?.(() => setNotice("Tap play once to allow this browser to start media."));
     }
-    const position = provider === "external"
+    const position = isSyncOnly
       ? getCanonicalPosition(stateRef.current)
       : getPlayer()?.currentTime() || getDesiredPosition(stateRef.current);
     sendPlayback(playing, position);

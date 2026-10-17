@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isMixedContent, mediaProvider, streamingPlatform, validMediaUrl, youtubeVideoId } from "../shared/media.js";
+import { instagramReelId, isMixedContent, mediaProvider, streamingPlatform, validMediaUrl, youtubeVideoId } from "../shared/media.js";
 import { createHlsPlayer, hlsErrorMessage } from "../src/player/hlsPlayer.js";
 import { createYoutubePlayer, youtubeErrorMessage } from "../src/player/youtubePlayer.js";
 
@@ -40,6 +40,26 @@ test("media URL validation rejects malformed or deceptive YouTube links", () => 
   assert.equal(validMediaUrl("https://cdn.example/video.webm"), true);
   assert.equal(validMediaUrl("https://cdn.example/page"), false);
   assert.equal(validMediaUrl("https://cdn.example/video.m3u8"), true);
+});
+
+test("Instagram Reel URL detection supports reel, reels, p, and tv links", () => {
+  const reelId = "C8xY_z12345";
+  for (const source of [
+    `https://www.instagram.com/reel/${reelId}/`,
+    `https://instagram.com/reel/${reelId}`,
+    `https://www.instagram.com/reels/${reelId}/?igsh=test`,
+    `https://www.instagram.com/p/${reelId}/`,
+    `https://instagr.am/p/${reelId}`,
+    `https://www.instagram.com/tv/${reelId}/`,
+  ]) {
+    assert.equal(instagramReelId(source), reelId);
+    assert.equal(mediaProvider(source), "instagram");
+    assert.equal(validMediaUrl(source), true);
+  }
+
+  assert.equal(instagramReelId("https://instagram.com.evil.example/reel/12345"), null);
+  assert.equal(instagramReelId("https://www.instagram.com/explore"), null);
+  assert.equal(instagramReelId("https://www.instagram.com/reel/"), null);
 });
 
 test("URL auto-detection selects HLS and recognized streaming services only", () => {

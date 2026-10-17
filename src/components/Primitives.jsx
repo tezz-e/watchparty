@@ -49,5 +49,18 @@ export function SoftField({ children, className = "", theme = "green" }) {
     event.currentTarget.style.setProperty("--x", `${event.clientX - rect.left}px`);
     event.currentTarget.style.setProperty("--y", `${event.clientY - rect.top}px`);
   };
-  return <div onPointerMove={move} className={`soft-field ${className}`} data-theme={theme}>{children}</div>;
+  return (
+    <div onPointerMove={move} className={`soft-field ${className}`} data-theme={theme}>
+      <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }} aria-hidden="true">
+        <defs>
+          <filter id="liquid-gooey">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+        </defs>
+      </svg>
+      {children}
+    </div>
+  );
 }
