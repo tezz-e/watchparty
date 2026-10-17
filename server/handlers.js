@@ -296,6 +296,66 @@ export function registerSocketHandlers(io) {
       publishState(room);
     });
 
+    socket.on("room:change-source", ({ title, source } = {}) => {
+      const room = roomFor(socket);
+      if (!room) return;
+      const canControl = room.config.control === "shared" || isHost(room, socket);
+      if (!canControl) return reject(socket, "host-controls", "The host has the remote.");
+      if (typeof source !== "string" || !validMediaUrl(source)) return reject(socket, "invalid-source", "Provide a supported media URL.");
+      room.config = { ...room.config, title: typeof title === "string" && title.trim() ? title.trim() : "Shared Video", source };
+      room.position = 0;
+      room.playing = false;
+      room.activePlaylistItemId = null;
+      room.reactionHeatmap = [];
+      room.reactionHighlights = null;
+      room.externalStarted = false;
+      room.externalCountdown = null;
+      for (const member of room.members.values()) member.externalReady = false;
+      room.updatedAt = now();
+      room.version += 1;
+      io.to(room.id).emit("room:config", room.config);
+      publishPresence(room);
+      publishState(room);
+    });
+
+    socket.on("webrtc:start-share", ({ title } = {}) => {
+      const room = roomFor(socket);
+      if (!room) return;
+      if (!canPublishScreen(room, socket.data.memberId)) return reject(socket, "permission-denied", "Only host or remote holder can share screen.");
+      room.screenShare = {
+        sharerSocketId: socket.id,
+        sharerMemberId: socket.data.memberId,
+        title: title || "Screen Share",
+      };
+      io.to(room.id).emit("webrtc:sharing-status", room.screenShare);
+      publishState(room);
+    });
+
+    socket.on("webrtc:stop-share", () => {
+      const room = roomFor(socket);
+      if (!room) return;
+      if (room.screenShare?.sharerSocketId === socket.id) {
+        room.screenShare = null;
+        io.to(room.id).emit("webrtc:sharing-status", null);
+        publishState(room);
+      }
+    });
+
+    socket.on("webrtc:signal", ({ toMemberId, signal } = {}) => {
+      const room = roomFor(socket);
+      if (!room) return;
+      for (const [sId, member] of room.members.entries()) {
+        if (member.id === toMemberId && member.online && member.socketId) {
+          io.to(member.socketId).emit("webrtc:signal", {
+            fromMemberId: socket.data.memberId,
+            fromSocketId: socket.id,
+            signal,
+          });
+          break;
+        }
+      }
+    });
+
     socket.on("playlist:vote", ({ id } = {}) => {
       const room = roomFor(socket);
       const item = room?.playlist.find(entry => entry.id === id);
@@ -516,8 +576,12 @@ export function registerSocketHandlers(io) {
         room.playing = false;
         room.updatedAt = now();
       }
+      if (room.screenShare?.sharerSocketId === socket.id) {
+        room.screenShare = null;
+        io.to(room.id).emit("webrtc:sharing-status", null);
+      }
       publishPresence(room);
-      if (cancelledCountdown) publishState(room);
+      if (cancelledCountdown || !room.screenShare) publishState(room);
       const key = `${room.id}:${member.id}`;
       clearDisconnectTimer(room.id, member.id);
       disconnectTimers.set(key, setTimeout(() => {

@@ -32,6 +32,7 @@ export function makeRoom(id) {
     reactionHeatmap: [],
     reactionHighlights: null,
     moods: {},
+    screenShare: null,
     telemetry: { commands: 0, driftSamples: 0, driftTotal: 0, maxDrift: 0, deliverySamples: 0, deliveryTotal: 0, deliveryTimeouts: 0 },
   };
 }
@@ -58,6 +59,7 @@ export function roomSnapshot(room) {
     updatedAt: now(),
     hostId: room.hostId,
     config: room.config,
+    screenShare: room.screenShare || null,
     serverNow: now(),
     externalStarted: room.externalStarted,
     externalCountdown: room.externalCountdown,

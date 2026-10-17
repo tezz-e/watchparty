@@ -1,9 +1,12 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField, ThemeSelect } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
 import { instagramReelId, tints } from "../data/catalog.js";
 import { formatTime } from "../utils/watchParty.js";
 import { useRoomSession } from "../hooks/useRoomSession.js";
+import { ChangeMediaModal } from "./ChangeMediaModal.jsx";
+import { getMediaPoster } from "../utils/mediaPoster.js";
+import { useWebRTCScreenShare } from "../hooks/useWebRTCScreenShare.js";
 import "./YoutubePlayer.css";
 import "./RoomFeatures.css";
 
@@ -15,8 +18,10 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState([{ label: "", source: "" }, { label: "", source: "" }]);
   const [creatingPoll, setCreatingPoll] = useState(false);
+  const [changeMediaOpen, setChangeMediaOpen] = useState(false);
   const [, setCountdownTick] = useState(0);
   const {
+    socket,
     state, connected, selfId, members, messages, reaction, copied, latency, notice,
     video, youtube, provider, platform, reportBuffering, reportMediaFailure,
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
@@ -24,6 +29,29 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
     localOffset, updateLocalOffset, getServerNow,
     requestScreenTicket,
   } = useRoomSession(profile, room);
+
+  const {
+    stream: screenStream,
+    isSharing: isSharingScreen,
+    activeShare: activeScreenShare,
+    startSharing: startScreenShare,
+    stopSharing: stopScreenShare,
+  } = useWebRTCScreenShare({
+    socket,
+    selfId,
+    members,
+    screenShareState: state.screenShare,
+    canPublish: hasRemote,
+    onNotice: () => {},
+  });
+
+  const screenVideoRef = useRef(null);
+  useEffect(() => {
+    if (screenVideoRef.current && screenStream) {
+      screenVideoRef.current.srcObject = screenStream;
+    }
+  }, [screenStream]);
+
   const poll = state.poll;
   const votes = Object.values(poll?.votes || {});
   const voteCount = votes.length;
@@ -31,6 +59,8 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const isSyncOnly = provider === "external" || provider === "instagram";
   const duration = isSyncOnly ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
   const position = getDesiredPosition();
+  const posterUrl = getMediaPoster(config.source, config.title);
+  const isStartingPlayback = !state.playing && position < 1 && !screenStream && provider !== "external";
   const telemetry = state.telemetry || {};
   const onlineMembers = members.filter(member => member.online);
   const readyMembers = onlineMembers.filter(member => member.externalReady);
@@ -66,8 +96,32 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
       <main className="room-layout">
         <section className="view-deck">
           <div className="now-line">
-            <span>NOW PLAYING</span><b>{config.title}</b><i/>
-            <span>{provider === "external" ? "SHARED CLOCK ONLY" : provider === "instagram" ? "INSTAGRAM REELS SYNC" : hasRemote ? "YOU HAVE THE REMOTE" : "HOST HAS THE REMOTE"}</span>
+            <div className="now-line-title">
+              <span>NOW PLAYING</span><b>{config.title}</b><i/>
+              <span>{provider === "external" ? "SHARED CLOCK ONLY" : provider === "instagram" ? "INSTAGRAM REELS SYNC" : hasRemote ? "YOU HAVE THE REMOTE" : "HOST HAS THE REMOTE"}</span>
+            </div>
+            <div className="now-line-actions">
+              {hasRemote && (
+                <button
+                  type="button"
+                  className="now-action-pill"
+                  onClick={() => setChangeMediaOpen(true)}
+                  title="Change current video"
+                >
+                  <Icon name="swap" size={13}/>
+                  <span>Change Video</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className={`now-action-pill ${isSharingScreen ? "active-share" : ""}`}
+                onClick={isSharingScreen ? stopScreenShare : startScreenShare}
+                title={isSharingScreen ? "Stop sharing screen" : "Share screen with room"}
+              >
+                <Icon name="device" size={13}/>
+                <span>{isSharingScreen ? "Stop Sharing" : "Screen Share"}</span>
+              </button>
+            </div>
           </div>
           <div className={`screen-chassis ${provider === "instagram" ? "instagram-active" : ""}`}>
             <div className="screen-beam"/>
@@ -76,6 +130,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               <video
                 ref={video}
                 src={provider === "url" ? config.source : undefined}
+                poster={posterUrl || undefined}
                 onTimeUpdate={onTime}
                 onWaiting={() => reportBuffering(true)}
                 onPlaying={() => reportBuffering(false)}
@@ -84,6 +139,70 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 playsInline
                 preload="metadata"
               />
+            )}
+            {screenStream && (
+              <div className="screenshare-stage">
+                <video
+                  ref={screenVideoRef}
+                  className="livekit-video screenshare-video"
+                  autoPlay
+                  playsInline
+                  muted={isSharingScreen}
+                />
+                <div className="screenshare-bar">
+                  <span className="live-badge">🔴 SCREEN SHARE</span>
+                  <span className="screenshare-title">{activeScreenShare?.title || "Live Screen Share"}</span>
+                  {isSharingScreen ? (
+                    <button type="button" className="screenshare-stop-btn" onClick={stopScreenShare}>
+                      Stop Sharing
+                    </button>
+                  ) : (
+                    <span className="screenshare-sharer-tag">
+                      Shared by {members.find(m => m.id === activeScreenShare?.sharerMemberId)?.name || "Participant"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            {isStartingPlayback && (
+              <div
+                className="center-play-overlay"
+                onClick={hasRemote ? togglePlayback : undefined}
+                title={hasRemote ? "Click to play for everyone" : "Host has the remote"}
+              >
+                {posterUrl && (
+                  <img
+                    src={posterUrl}
+                    alt={config.title}
+                    className="center-play-poster"
+                    onError={e => { e.currentTarget.style.display = "none"; }}
+                  />
+                )}
+                <div className="center-play-scrim" />
+                <div className="center-play-content">
+                  <button
+                    type="button"
+                    className="center-play-glow-btn"
+                    onClick={e => {
+                      e.stopPropagation();
+                      togglePlayback();
+                    }}
+                    aria-label="Start playback for everyone"
+                  >
+                    <Icon name="play" size={32} />
+                  </button>
+                  <div className="center-play-badge">
+                    <span className="badge-dot" />
+                    <span>READY TO WATCH</span>
+                  </div>
+                  <h2 className="center-play-title">{config.title || "Untitled Video"}</h2>
+                  <p className="center-play-hint">
+                    {hasRemote
+                      ? "Click anywhere or press play to start playback for everyone"
+                      : "Waiting for host to press play"}
+                  </p>
+                </div>
+              </div>
             )}
             {provider === "external" && (
               <div className="external-sync-panel">
@@ -389,6 +508,14 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
           )}
         </aside>
       </main>
+      <ChangeMediaModal
+        isOpen={changeMediaOpen}
+        onClose={() => setChangeMediaOpen(false)}
+        currentSource={config.source}
+        currentTitle={config.title}
+        onUpdate={({ title, source }) => send("room:change-source", { title, source })}
+        theme={theme}
+      />
     </SoftField>
   );
 }

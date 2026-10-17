@@ -18,6 +18,10 @@ export function Icon({ name, size = 18 }) {
     queue: "M4 6h16M4 12h16M4 18h10",
     transfer: "M7 7h10m0 0-3-3m3 3-3 3M17 17H7m0 0 3-3m-3 3 3 3",
     external: "M14 4h6v6m-10 4L20 4M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6",
+    device: "M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm6 16h8m-4-4v4",
+    swap: "M4 7h16m0 0-4-4m4 4-4 4M20 17H4m0 0 4 4m-4-4 4-4",
+    search: "m21 21-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z",
+    film: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4h16M4 16h16M8 4v4m8-4v4M8 16v4m8-4v4",
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[name] || paths.spark} /></svg>;
 }

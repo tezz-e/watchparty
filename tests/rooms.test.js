@@ -595,3 +595,53 @@ test("room capacity counts reconnect-grace members toward twenty", async () => {
   overflow.socket.emit("room:join", { roomId, memberId: overflow.memberId, name: overflow.name });
   assert.equal((await fullError)[0].code, "room-full");
 });
+
+test("host can change media source mid-room and peers receive updated config and reset state", async () => {
+  const host = await connect("change-host-0001");
+  const { roomId } = await createRoom(host);
+  const guest = await connect("change-guest-0001");
+  await joinRoom(guest, roomId);
+
+  const newSource = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
+  const guestConfigUpdate = eventOnce(guest.socket, "room:config", config => config.source === newSource);
+  const guestStateUpdate = eventOnce(guest.socket, "room:state", state => state.config.source === newSource);
+
+  host.socket.emit("room:change-source", { title: "Blender Nature Short", source: newSource });
+
+  const [receivedConfig] = await guestConfigUpdate;
+  assert.equal(receivedConfig.source, newSource);
+  assert.equal(receivedConfig.title, "Blender Nature Short");
+
+  const [receivedState] = await guestStateUpdate;
+  assert.equal(receivedState.config.source, newSource);
+  assert.equal(receivedState.playing, false);
+  assert.equal(receivedState.position, 0);
+});
+
+test("host or remote holder can start/stop screen sharing and relay WebRTC signals", async () => {
+  const host = await connect("share-host-0001");
+  const { roomId } = await createRoom(host);
+  const guest = await connect("share-guest-0001");
+  await joinRoom(guest, roomId);
+
+  const sharingStatusPromise = eventOnce(guest.socket, "webrtc:sharing-status");
+  host.socket.emit("webrtc:start-share", { title: "Host Screen" });
+  const [sharingStatus] = await sharingStatusPromise;
+  assert.equal(sharingStatus.sharerMemberId, host.memberId);
+  assert.equal(sharingStatus.title, "Host Screen");
+
+  const signalPromise = eventOnce(guest.socket, "webrtc:signal");
+  host.socket.emit("webrtc:signal", {
+    toMemberId: guest.memberId,
+    signal: { type: "offer", offer: { sdp: "dummy-sdp", type: "offer" } },
+  });
+  const [receivedSignal] = await signalPromise;
+  assert.equal(receivedSignal.fromMemberId, host.memberId);
+  assert.equal(receivedSignal.signal.type, "offer");
+
+  const stopStatusPromise = eventOnce(guest.socket, "webrtc:sharing-status");
+  host.socket.emit("webrtc:stop-share");
+  const [stopStatus] = await stopStatusPromise;
+  assert.equal(stopStatus, null);
+});
+

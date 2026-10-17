@@ -9,8 +9,9 @@ import { isMixedContent, mediaProvider, streamingPlatform, youtubeVideoId } from
 import { serverUrl } from "../utils/serverUrl.js";
 
 export function useRoomSession(profile, room) {
-  const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: null, reactionHeatmap: [], reactionHighlights: null, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
+  const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: null, screenShare: null, reactionHeatmap: [], reactionHighlights: null, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
   const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState(""), [localOffset, setLocalOffsetState] = useState(0), [externalReady, setExternalReady] = useState(false);
+  const [socketInstance, setSocketInstance] = useState(null);
   const socket = useRef(null), video = useRef(null), youtube = useRef(null), player = useRef(null), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), localOffsetRef = useRef(localOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state);
   stateRef.current = state;
   clockOffsetRef.current = clockOffset;
@@ -27,6 +28,7 @@ export function useRoomSession(profile, room) {
     config: next.config ? { ...previous.config, ...next.config } : previous.config,
     playlist: next.playlist ?? previous.playlist,
     poll: Object.hasOwn(next, "poll") ? next.poll : previous.poll,
+    screenShare: Object.hasOwn(next, "screenShare") ? next.screenShare : previous.screenShare,
     reactionHeatmap: next.reactionHeatmap ?? previous.reactionHeatmap,
     reactionHighlights: Object.hasOwn(next, "reactionHighlights") ? next.reactionHighlights : previous.reactionHighlights,
   }));
@@ -51,6 +53,7 @@ export function useRoomSession(profile, room) {
   useEffect(() => {
     const client = io(serverUrl, { transports: ["websocket", "polling"], reconnection: true });
     socket.current = client;
+    setSocketInstance(client);
     const join = () => {
       setConnected(true);
       const identity = { roomId: room.id, name: profile.name, memberId: memberId.current };
@@ -63,6 +66,7 @@ export function useRoomSession(profile, room) {
     client.on("room:state", applyState);
     client.on("playback:state", (next, acknowledge) => { applyState(next); if (typeof acknowledge === "function") acknowledge(); });
     client.on("room:config", configUpdate => setState(previous => ({ ...previous, config: { ...previous.config, ...configUpdate } })));
+    client.on("webrtc:sharing-status", screenShare => setState(previous => ({ ...previous, screenShare })));
     client.on("room:presence", nextMembers => {
       setMembers(nextMembers);
       setExternalReady(Boolean(nextMembers.find(member => member.id === memberId.current)?.externalReady));
@@ -72,7 +76,10 @@ export function useRoomSession(profile, room) {
     client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
     client.on("room:error", error => setNotice(error.message));
     client.on("media:failure", ({ name, code }) => setNotice(`${name} could not play this video: ${mediaErrorMessage(code)}`));
-    return () => client.close();
+    return () => {
+      setSocketInstance(null);
+      client.close();
+    };
   }, [profile.name, room.id]);
 
   useEffect(() => { if (!notice) return; const timeout = setTimeout(() => setNotice(""), 3600); return () => clearTimeout(timeout); }, [notice]);
@@ -250,5 +257,5 @@ export function useRoomSession(profile, room) {
     }
   };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
+  return { socket: socketInstance, state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
 }
