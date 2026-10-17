@@ -1,0 +1,143 @@
+.soft-field {
+  --theme-accent: #c8ff76;
+  --theme-highlight: #d7ff9a;
+  --theme-ink: #172013;
+  --theme-glow: rgba(184, 255, 113, .075);
+  --theme-border: #94bb60;
+  background: radial-gradient(540px circle at var(--x, 76%) var(--y, 18%), var(--theme-glow), transparent 43%), #0b0e0c;
+}
+
+.soft-field[data-theme="amber"] {
+  --theme-accent: #ffc16e;
+  --theme-highlight: #ffdda0;
+  --theme-ink: #35220f;
+  --theme-glow: rgba(255, 174, 74, .11);
+  --theme-border: #c9944d;
+}
+
+.soft-field[data-theme="blue"] {
+  --theme-accent: #8ecbff;
+  --theme-highlight: #b8e0ff;
+  --theme-ink: #102336;
+  --theme-glow: rgba(104, 176, 255, .11);
+  --theme-border: #6e9dc6;
+}
+
+.theme-select {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #81897f;
+  font: 8px "DM Mono", monospace;
+  letter-spacing: .7px;
+}
+
+.theme-select select {
+  max-width: 112px;
+  border: 1px solid #394238;
+  border-radius: 5px;
+  padding: 7px 22px 7px 8px;
+  color: #dfe6da;
+  background: #141914;
+  font: 10px "DM Sans", sans-serif;
+  letter-spacing: 0;
+  outline: none;
+}
+
+.theme-select select:focus-visible {
+  border-color: var(--theme-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 14%, transparent);
+}
+
+.theme-select option {
+  color: #e9ebe6;
+  background: #141914;
+}
+
+.lobby-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.soft-field[data-theme] .signal-logo i,
+.soft-field[data-theme] .eyebrow > span,
+.soft-field[data-theme] .live-pulse,
+.soft-field[data-theme] .status-led,
+.soft-field[data-theme] .oscilloscope i {
+  background-color: var(--theme-accent);
+  box-shadow: 0 0 10px var(--theme-accent);
+}
+
+.soft-field[data-theme] .primary-action,
+.soft-field[data-theme] .poll-submit,
+.soft-field[data-theme] .transport-play {
+  color: var(--theme-ink);
+  background-color: var(--theme-accent);
+  box-shadow: 0 0 0 1px var(--theme-highlight) inset, 0 12px 30px color-mix(in srgb, var(--theme-accent) 16%, transparent);
+}
+
+.soft-field[data-theme] .primary-action:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--theme-highlight) inset, 0 16px 38px color-mix(in srgb, var(--theme-accent) 23%, transparent);
+}
+
+.soft-field[data-theme] .identity-copy h1::first-line,
+.soft-field[data-theme] .lobby-hero h1 em,
+.soft-field[data-theme] .stepper .active,
+.soft-field[data-theme] .principles i,
+.soft-field[data-theme] .instrument-top b,
+.soft-field[data-theme] .join-tray button,
+.soft-field[data-theme] .queue-list button.voted,
+.soft-field[data-theme] .poll-add-option,
+.soft-field[data-theme] .poll-pane > button.selected,
+.soft-field[data-theme] .room-status b {
+  color: var(--theme-highlight);
+}
+
+.soft-field[data-theme] .join-tray button,
+.soft-field[data-theme] .poll-add-option,
+.soft-field[data-theme] .poll-submit,
+.soft-field[data-theme] .poll-pane > button.selected,
+.soft-field[data-theme] .queue-list button.voted {
+  border-color: var(--theme-border);
+}
+
+.soft-field[data-theme] .field-label input:focus,
+.soft-field[data-theme] .category-row button.active {
+  border-color: var(--theme-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+
+.soft-field[data-theme] .transport input[type="range"] {
+  accent-color: var(--theme-accent);
+}
+
+@media (max-width: 540px) {
+  .identity-nav {
+    gap: 8px;
+  }
+
+  .theme-select {
+    gap: 4px;
+  }
+
+  .theme-select > span {
+    display: none;
+  }
+
+  .lobby-profile-actions {
+    gap: 8px;
+  }
+
+  .lobby-profile-actions .profile-pill > span {
+    display: none;
+  }
+
+  .room-actions .theme-select select {
+    max-width: 92px;
+    padding: 6px 18px 6px 6px;
+    font-size: 9px;
+  }
+}

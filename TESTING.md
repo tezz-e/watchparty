@@ -4,8 +4,11 @@ Run the automated Socket.IO integration suite and production frontend build in P
 
 ```powershell
 npm.cmd test
+npm.cmd run test:browser
 npm.cmd run build
 ```
+
+The browser test requires Chromium once (`npx.cmd playwright install chromium`). It starts an isolated Node server and Vite dev server, creates a room in one Chromium context, joins via the invite link in another, loads `tests/fixtures/afterglow-timecode.webm` in both local video elements, and measures playhead drift after synchronization. It also checks the green default, persistent amber selection, and blue accent. The Playwright config uses ports `43761` and `43762`; stop any process occupying them before testing.
 
 For a single-origin production/LAN run, build the client and start the server:
 
@@ -37,6 +40,7 @@ The integration suite starts an isolated server on an available local port and c
 | Personal clock nudge | Local sync-only offsets are limited to ±15 seconds in quarter-second increments and do not change server room state. |
 | Local media library | `/api/library` lists top-level MP4/WebM files in `media/`; `/media/:filename` serves byte ranges. |
 | Delivery percentiles | `/metrics/latency` reports server-observed delivery p50/p95/p99, cumulative samples/timeouts, and the current sample-window size. |
+| Browser playback | `tests/browser/room-sync.spec.js` verifies local VP9 WebM playback in two headless Chromium contexts, shared invite, synchronized playhead, and theme selection/persistence. |
 
 The client estimates its clock offset from the server timestamps in the latency ping response and uses that offset when calculating the canonical playhead. Playback correction runs every 250 ms in three zones: drift up to 80 ms is left alone, drift above 80 ms through 500 ms is corrected by adjusting playback rate within 0.95-1.05, and drift above 500 ms is corrected with a seek. `tests/playback-sync.test.js` covers offset estimation, zone boundaries, offset-adjusted playhead calculation, and the HTML video adapter.
 
@@ -79,7 +83,7 @@ npm.cmd run server
 npm.cmd run load-test -- http://localhost:3001 10 20
 ```
 
-The load-test arguments are server URL, client count (1-20), and playback command count (1-10000); defaults are `http://localhost:3001`, 10, and 20. The report includes client-observed command propagation percentiles and the server delivery-latency endpoint. It creates a temporary room on the target server and disconnects its clients when finished.
+The load-test arguments are server URL, client count (1-20), and sequential playback command count (1-10000); defaults are `http://localhost:3001`, 10, and 20. The report includes sequential, simultaneous same-version, and post-reconnect propagation percentiles; it forces one participant to reconnect using the same member identity. It creates a temporary room on the target server and disconnects its clients when finished. See [docs/PERFORMANCE.md](./docs/PERFORMANCE.md) for measured 10/20-client conditions and results. Those measurements used loopback, not a real LAN.
 
 The room UI reports average absolute local playback drift and its maximum from client `sync:drift` samples. It also reports the number of accepted playback commands and delivery acknowledgement round-trip time; the server tracks acknowledgements and timeouts. These are runtime observations, not guarantees of a particular network or media source. The automated suite exercises Socket.IO state propagation with ten clients; it does not launch ten real browsers or claim a browser-decoded media drift benchmark.
 

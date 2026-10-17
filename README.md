@@ -9,11 +9,20 @@ Requires Node.js 20.19+ or 22.12+.
 ```powershell
 npm.cmd install
 npm.cmd test
+npm.cmd run test:browser
 npm.cmd run build
 npm.cmd run server
 ```
 
 The production server serves the built app and Socket.IO from one origin (default port `3001`). Open that URL on each device. For Vite development, use `npm.cmd run dev`; its socket and API requests are proxied to `http://localhost:3001`. Set `VITE_BACKEND_URL` only when the API/media server is elsewhere. `VITE_SOCKET_URL` is an optional explicit Socket.IO URL override.
+
+## Color themes
+
+Choose Moss glow (green), Amber lamp (warm amber-orange), or Blue hour from the theme selector on the identity, lobby, or room screen. Your selection is stored in this browser's local storage and follows you between screens.
+
+## Verification
+
+`npm.cmd test` runs the complete Node/Socket.IO suite. `npm.cmd run test:browser` launches isolated server and Vite instances, opens two independent Chromium contexts, loads the generated `tests/fixtures/afterglow-timecode.webm`, and checks theme persistence and synchronized playback. Install the browser once with `npx.cmd playwright install chromium`. This loopback browser test does not replace a real multi-device LAN test.
 
 ## Shared room tools
 
@@ -55,7 +64,7 @@ Open `https://192.168.1.23:5173` on each client. The Vite HTTPS certificate and 
 
 ## Discovery and media
 
-The hand-authored fallback catalog works offline and includes locally stored poster illustrations for open-movie titles. It does not contain third-party film files. To play a catalog title, obtain an authorized copy, add it to `media/` using the filename shown in `src/data/catalog.json`, and restart/refresh discovery. Catalog cards show whether the local file is present. A generated Afterglow timecode clip is included for local sync checks. Catalog service buttons open the configured service's home page in a new tab; the title is visible in the room, but no unverified search/deep-link URL is guessed.
+The hand-authored fallback catalog works offline and includes locally stored poster illustrations for open-movie titles. It does not contain third-party film files. To play a catalog title, obtain an authorized copy, add it to `media/` using the filename shown in `src/data/catalog.json`, and restart/refresh discovery. Catalog cards show whether the local file is present. A small generated timecode WebM is included under `tests/fixtures/` for browser sync checks. Catalog service buttons open the configured service's home page in a new tab; the title is visible in the room, but no unverified search/deep-link URL is guessed.
 
 Use a source you have verified before downloading:
 
@@ -114,4 +123,4 @@ Express + Socket.IO server
 
 This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data is provided by JustWatch. Catalog data is a dated snapshot, not live availability; region and seed date are stored in `src/data/SEED_INFO.json` after seeding.
 
-See [TESTING.md](./TESTING.md) for automated coverage, test conditions, and verification limitations.
+See [TESTING.md](./TESTING.md) for automated coverage, test conditions, and verification limitations; [docs/PERFORMANCE.md](./docs/PERFORMANCE.md) for measured loopback results and failure handling; [DEMO.md](./DEMO.md) for a five-minute walkthrough; and [REQUIREMENTS_MATRIX.md](./REQUIREMENTS_MATRIX.md) for implementation-to-evidence mapping.

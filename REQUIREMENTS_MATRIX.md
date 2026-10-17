@@ -1,0 +1,23 @@
+# Requirements and evidence
+
+Evidence distinguishes automated behavior tests from measured environment results. Local loopback results are not represented as LAN/device measurements.
+
+| Requirement | Implementation | Test / evidence | Status and limits |
+| --- | --- | --- | --- |
+| Create/join rooms by invite or code | `src/components/EntryScreens.jsx`, `src/hooks/useRoomSession.js`, `server/handlers.js` | `tests/rooms.test.js`; `tests/browser/room-sync.spec.js` | Covered in automated socket tests and two-browser invite flow. |
+| Synchronized play, pause, seek | `src/hooks/useRoomSession.js`, `src/player/htmlVideoPlayer.js`, `server/handlers.js` | `tests/playback-sync.test.js`; browser test | Browser test loads the same VP9 WebM in two Chromium contexts and measures a 21.7 ms maximum playhead difference across ten samples in one run. |
+| Discovery, categories, fuzzy search, local availability | `src/components/EntryScreens.jsx`, `src/data/localCatalog.js`, `src/data/catalog.json` | `tests/local-catalog.test.js` | Offline catalog/search/filter behavior covered; only locally installed authorized media is playable. |
+| Shared playlist, votes, reorder, auto-advance | `src/components/EntryScreens.jsx`, `src/components/Room.jsx`, `server/handlers.js` | `tests/rooms.test.js` | Queue lifecycle, host controls, votes, and advance behavior covered by socket integration tests. |
+| Polls and winner-to-queue | `src/components/Room.jsx`, `server/handlers.js` | `tests/rooms.test.js` | Changeable votes, host closure, winner queueing, and auto-advance covered. |
+| Reactions, chat, reaction heatmap | `src/components/Room.jsx`, `server/handlers.js` | `tests/rooms.test.js` | Timestamped reaction history and heatmap state covered; chat is exercised through room integration behavior. |
+| Host transfer and departure | `src/components/Room.jsx`, `server/handlers.js` | `tests/rooms.test.js` | Explicit transfer and grace-expiry election covered. A disconnected host remains host during its reconnect grace period. |
+| Drift detection/correction and late join | `src/hooks/useRoomSession.js`, `src/utils/playbackSync.js` | `tests/playback-sync.test.js`; browser test | Correction-zone math and server-clock offset are unit-tested. Browser drift evidence is a short two-context loopback measurement, not broad-device coverage. |
+| Reconnect and concurrent actions | `server/handlers.js`, `scripts/loadtest.js` | `tests/rooms.test.js`; 10- and 20-client runs in `docs/PERFORMANCE.md` | Both load runs confirmed same-version conflict resolution, identity rejoin, and delivery of a subsequent command to all clients. |
+| At least 10 participants | `server/rooms.js` | `tests/rooms.test.js`; 10/20-client load tests | Tested with virtual Socket.IO clients; no physical 10-device session measured. |
+| Playback propagation p95 ≤250 ms on a local network | `server/telemetry.js`, `scripts/loadtest.js` | `docs/PERFORMANCE.md` | Loopback client p95 was 3.055 ms (10 clients) and 4.479 ms (20 clients). A real LAN/10-device result remains outstanding. |
+| Drift ≤500 ms after correction | `src/utils/playbackSync.js`, `src/hooks/useRoomSession.js` | unit tests and browser test | One local Chromium run measured maximum 21.7 ms over ten comparisons; real-device/LAN behavior remains to be measured. |
+| Per-member health and mood recommendations | `src/components/Room.jsx`, `server/handlers.js` | `tests/rooms.test.js` | Health values and mood aggregation are covered by tests. |
+| Local/direct/HLS/YouTube/sync-only providers | `shared/media.js`, `src/player/`, `src/data/catalog.js` | `tests/media-providers.test.js`, `tests/rooms.test.js` | URL parsing, validation, adapters, failures, and sync-only behavior are automated. Third-party availability and playback permissions are external. |
+| Optional LiveKit screen sharing | `server/livekit.js`, `server/handlers.js`, `src/components/LiveKitScreen.jsx`, `docker-compose.yml` | `tests/livekit.test.js`, `tests/rooms.test.js` | Token and permission logic plus unavailable fallback tested. Docker, TLS, network reachability, and actual WebRTC media were not tested here. |
+| Warm and alternate themes | `src/themes.css`, `src/App.jsx`, `src/components/Primitives.jsx` | `tests/browser/room-sync.spec.js` | Green default, persistent amber selection, and blue accent color checked in Chromium. |
+| Failure handling and limitations | `docs/PERFORMANCE.md`, `README.md`, `TESTING.md` | Automated room/source/LiveKit tests and measured runs | Server restart persistence is not implemented; room state is in-memory. No arbitrary user URL is fetched by the server. |

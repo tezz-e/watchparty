@@ -3,15 +3,15 @@ import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl 
 import { catalog, catalogAvailability, catalogCategories, catalogGenres, catalogSnapshot, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
 import { roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
-import { Avatar, Icon, SoftField, Wordmark } from "./Primitives.jsx";
+import { Avatar, Icon, SoftField, ThemeSelect, Wordmark } from "./Primitives.jsx";
 
-export function Identity({ onContinue }) {
+export function Identity({ onContinue, theme, onThemeChange }) {
   const [name, setName] = useState("");
   const [tint, setTint] = useState("lime");
 
   return (
-    <SoftField className="identity-page">
-      <div className="identity-nav"><Wordmark/><span className="nav-note">SYNCED VIEWING, WITHOUT THE FUSS</span></div>
+    <SoftField className="identity-page" theme={theme}>
+      <div className="identity-nav"><Wordmark/><span className="nav-note">SYNCED VIEWING, WITHOUT THE FUSS</span><ThemeSelect theme={theme} onChange={onThemeChange}/></div>
       <div className="identity-grid">
         <section className="identity-copy">
           <p className="eyebrow"><span/>YOUR REMOTE, EVERYWHERE</p>
@@ -31,13 +31,13 @@ export function Identity({ onContinue }) {
   );
 }
 
-export function Lobby({ profile, onCreate, onJoin }) {
+export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange }) {
   const [join, setJoin] = useState(false);
   const [code, setCode] = useState("");
 
   return (
-    <SoftField className="lobby-page">
-      <header className="lobby-nav"><Wordmark/><div className="nav-center"><span className="live-pulse"/>REALTIME READY</div><div className="profile-pill"><Avatar name={profile.name} tint={profile.tint} small/><span>{profile.name}</span></div></header>
+    <SoftField className="lobby-page" theme={theme}>
+      <header className="lobby-nav"><Wordmark/><div className="nav-center"><span className="live-pulse"/>REALTIME READY</div><div className="lobby-profile-actions"><ThemeSelect theme={theme} onChange={onThemeChange}/><div className="profile-pill"><Avatar name={profile.name} tint={profile.tint} small/><span>{profile.name}</span></div></div></header>
       <main className="lobby-main">
         <section className="lobby-hero">
           <p className="eyebrow"><span/>CONTROL ROOM</p>

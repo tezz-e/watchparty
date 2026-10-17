@@ -30,11 +30,24 @@ export function Avatar({ name = "?", tint = "lime", small = false }) {
   return <span className={`avatar ${tint} ${small ? "small" : ""}`}>{name[0]?.toUpperCase()}</span>;
 }
 
-export function SoftField({ children, className = "" }) {
+export function ThemeSelect({ theme, onChange }) {
+  return (
+    <label className="theme-select">
+      <span>THEME</span>
+      <select aria-label="Color theme" value={theme} onChange={event => onChange(event.target.value)}>
+        <option value="green">Moss glow</option>
+        <option value="amber">Amber lamp</option>
+        <option value="blue">Blue hour</option>
+      </select>
+    </label>
+  );
+}
+
+export function SoftField({ children, className = "", theme = "green" }) {
   const move = event => {
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.style.setProperty("--x", `${event.clientX - rect.left}px`);
     event.currentTarget.style.setProperty("--y", `${event.clientY - rect.top}px`);
   };
-  return <div onPointerMove={move} className={`soft-field ${className}`}>{children}</div>;
+  return <div onPointerMove={move} className={`soft-field ${className}`} data-theme={theme}>{children}</div>;
 }

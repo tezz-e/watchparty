@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Icon, Wordmark, Avatar, SoftField } from "./Primitives.jsx";
+import { Icon, Wordmark, Avatar, SoftField, ThemeSelect } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
 import { tints } from "../data/catalog.js";
 import { formatTime } from "../utils/watchParty.js";
@@ -9,7 +9,7 @@ import "./RoomFeatures.css";
 
 const LiveKitScreen = lazy(() => import("./LiveKitScreen.jsx"));
 
-export default function Room({ profile, room, onLeave }) {
+export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [draft, setDraft] = useState("");
   const [drawer, setDrawer] = useState("chat");
   const [pollQuestion, setPollQuestion] = useState("");
@@ -44,11 +44,12 @@ export default function Room({ profile, room, onLeave }) {
   }, [provider, state.externalCountdown?.startsAt]);
 
   return (
-    <SoftField className="room-page">
+    <SoftField className="room-page" theme={theme}>
       <header className="room-nav">
         <button className="back-button" onClick={onLeave}>← Lobby</button>
         <Wordmark/>
         <div className="room-actions">
+          <ThemeSelect theme={theme} onChange={onThemeChange}/>
           <div className="room-status">
             <span className={connected ? "status-led" : "status-led dim"}/>
             <span>{connected ? "LIVE SYNC" : "RECONNECTING"}</span>
