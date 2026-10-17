@@ -7,8 +7,11 @@ const INSTAGRAM_ID_PATTERN = /^[A-Za-z0-9_-]{5,35}$/;
 
 function webUrl(value) {
   if (typeof value !== "string" || !value) return null;
+  const clean = value.trim();
   try {
-    const url = new URL(value);
+    const raw = clean.includes("://") ? clean : (clean.includes(".") ? `https://${clean}` : null);
+    if (!raw) return null;
+    const url = new URL(raw);
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return null;
     return url;
   } catch {
@@ -38,7 +41,7 @@ export function youtubeVideoId(value) {
 export function instagramReelId(value) {
   const url = webUrl(value);
   if (!url || !INSTAGRAM_HOSTS.has(url.hostname.toLowerCase())) return null;
-  const match = url.pathname.match(/^\/(?:reel|reels|p|tv)\/([^/]+)\/?$/i);
+  const match = url.pathname.match(/(?:\/|^)(?:reel|reels|p|tv)\/([A-Za-z0-9_-]{5,35})(?:\/|$)/i);
   const id = match?.[1] || null;
   return id && INSTAGRAM_ID_PATTERN.test(id) ? id : null;
 }

@@ -87,10 +87,48 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             )}
             {provider === "external" && (
               <div className="external-sync-panel">
-                <span className="eyebrow"><span/>SYNC-ONLY MODE · {platform?.name}</span>
-                <h2>Open your stream separately.</h2>
-                <p>Afterglow shares a room clock; it cannot control or inspect playback on another site.</p>
-                <a href={config.source} target="_blank" rel="noreferrer">Open {platform?.name}<Icon name="arrow" size={15}/></a>
+                <div className="external-sync-header">
+                  <span className="eyebrow"><span/>SYNC-ONLY COMPANION · {platform?.name || "STREAMING"}</span>
+                  <h2>Synchronized Watch Party for {platform?.name || "Streaming"}</h2>
+                  <p>Because commercial streaming services prohibit external player embedding, Afterglow acts as your shared room clock, ready check, and social companion.</p>
+                </div>
+                <div className="external-sync-steps">
+                  <div className="sync-step">
+                    <span className="step-num">01</span>
+                    <div>
+                      <b>Open {platform?.name || "Stream"}</b>
+                      <p>Launch the movie in your own account in another tab, split-window, or TV.</p>
+                      <a href={config.source} target="_blank" rel="noreferrer" className="external-launch-link">
+                        Open on {platform?.name || "Stream"}<Icon name="external" size={12}/>
+                      </a>
+                    </div>
+                  </div>
+                  <div className="sync-step">
+                    <span className="step-num">02</span>
+                    <div>
+                      <b>Cue to 00:00 &amp; Ready Up</b>
+                      <p>Pause at the start of the title, then click <em>Mark me ready</em> below.</p>
+                    </div>
+                  </div>
+                  <div className="sync-step">
+                    <span className="step-num">03</span>
+                    <div>
+                      <b>3-2-1 Countdown</b>
+                      <p>Once all members are ready, host fires the 3-2-1 countdown. Press play together at zero!</p>
+                    </div>
+                  </div>
+                  <div className="sync-step">
+                    <span className="step-num">04</span>
+                    <div>
+                      <b>Social &amp; Clock Sync</b>
+                      <p>Keep this tab open for synchronized pauses, live reactions, chat, and room polls.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="external-screen-share-tip">
+                  <Icon name="device" size={14}/>
+                  <span><strong>Want everyone watching one screen?</strong> Use <em>Screen Share</em> at the top right to broadcast your window directly to the room!</span>
+                </div>
               </div>
             )}
             {provider === "instagram" && (
@@ -184,7 +222,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             <section className="external-room-controls">
               <div className="external-controls-copy">
                 <span className="eyebrow"><span/>{provider === "instagram" ? "REELS PLAYBACK SYNC" : "SYNC-ONLY READY CHECK"}</span>
-                <p>{provider === "instagram" ? "Everyone gets ready together. When the host fires the 3-2-1 countdown, everyone starts watching together at 0s. Send live floating emoji reactions and chat!" : "Afterglow cannot control or inspect the streaming service. Open the title in your own account, then mark yourself ready."}</p>
+                <p>{provider === "instagram" ? "Everyone gets ready together. When the host fires the 3-2-1 countdown, everyone starts watching together at 0s. If this creator has disabled iframe embedding, tap 'Open on Instagram' and use the shared countdown below." : "Afterglow coordinates the shared room clock, ready check, and social reactions. Open the title in your own account, cue to 00:00, then mark yourself ready."}</p>
                 <div className="external-ready-list">
                   {onlineMembers.map(member => <span key={member.id} className={member.externalReady ? "ready" : ""}>{member.name} · {member.externalReady ? "READY" : "NOT READY"}</span>)}
                   {!onlineMembers.length && <span>Waiting for participants…</span>}

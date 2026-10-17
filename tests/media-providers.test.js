@@ -51,6 +51,9 @@ test("Instagram Reel URL detection supports reel, reels, p, and tv links", () =>
     `https://www.instagram.com/p/${reelId}/`,
     `https://instagr.am/p/${reelId}`,
     `https://www.instagram.com/tv/${reelId}/`,
+    `https://www.instagram.com/share/reel/${reelId}/`,
+    `https://www.instagram.com/creators/reel/${reelId}/`,
+    `instagram.com/reel/${reelId}`,
   ]) {
     assert.equal(instagramReelId(source), reelId);
     assert.equal(mediaProvider(source), "instagram");

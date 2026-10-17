@@ -176,20 +176,23 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
         {provider === "instagram" && <p className="source-note">Instagram Reel embedded player with synced countdown, shared room clock, live emoji reactions, and chat.</p>}
         {provider === "hls" && !mixedContent && <p className="source-note">HLS plays through the browser’s native player or hls.js. The media host must allow cross-origin requests from this site.</p>}
         {provider === "external" && <p className="source-note">This is a sync-only room for {platform.name}. Everyone opens the link in their own account; Afterglow cannot control that site’s player.</p>}
+        <fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control === "host" ? "chosen" : ""} onClick={() => setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control === "shared" ? "chosen" : ""} onClick={() => setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset>
+        <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : provider === "instagram" ? "Create Reels room" : "Create the room"} <Icon name="arrow"/></button>
+        <div className="catalog-divider"><span>OR CHOOSE FROM OFFLINE CATALOG</span></div>
         <Discovery
           query={query}
           setQuery={setQuery}
           category={category}
           setCategory={setCategory}
-          action="Use this"
-          onSelect={item => { setTitle(item.title); setSource(item.source); }}
+          action="Launch room"
+          onSelect={item => {
+            onEnter({ id: roomId(), title: item.title, source: item.source, control, kind: mediaProvider(item.source) || "url", create: true });
+          }}
           onSyncOnly={(item, service) => {
             const deepLink = externalPlatformUrl(service.name);
-            if (deepLink) onEnter({ id: roomId(), title: item.title, source: deepLink, control: "host", kind: "external", create: true });
+            if (deepLink) onEnter({ id: roomId(), title: item.title, source: deepLink, control, kind: "external", create: true });
           }}
         />
-        <fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control === "host" ? "chosen" : ""} onClick={() => setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control === "shared" ? "chosen" : ""} onClick={() => setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset>
-        <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : provider === "instagram" ? "Create Reels room" : "Create the room"} <Icon name="arrow"/></button>
       </form>
     </div>
   );
