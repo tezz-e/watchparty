@@ -8,6 +8,7 @@ import { registerSocketHandlers } from "./server/handlers.js";
 import { listLibraryItems } from "./server/library.js";
 import { MAX_MEMBERS, RECONNECT_GRACE_MS, rooms } from "./server/rooms.js";
 import { serverLatencyMetrics, serverTelemetry } from "./server/telemetry.js";
+import { canPublishScreen, liveKitService } from "./server/livekit.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -58,6 +59,36 @@ app.get("/media/:filename", (req, res, next) => {
 
 app.get("/metrics/latency", (_req, res) => {
   res.json(serverLatencyMetrics());
+});
+
+app.get("/api/livekit/status", (_req, res) => {
+  res.json({ enabled: liveKitService.enabled });
+});
+
+app.post("/api/livekit/token", express.json({ limit: "2kb" }), async (req, res) => {
+  if (!liveKitService.enabled) {
+    res.status(503).json({ error: "Screen sharing is not configured on this server." });
+    return;
+  }
+  const ticket = req.body?.ticket;
+  if (typeof ticket !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(ticket)) {
+    res.status(400).json({ error: "A valid room-issued screen-share ticket is required." });
+    return;
+  }
+  const credentials = await liveKitService.createToken(ticket, ({ roomId, memberId }) => {
+    const room = rooms.get(roomId);
+    const member = room?.members.get(memberId);
+    if (!member?.online) return null;
+    return {
+      name: member.name,
+      canPublish: canPublishScreen(room, memberId),
+    };
+  });
+  if (!credentials) {
+    res.status(403).json({ error: "The room ticket is invalid, expired, or already used." });
+    return;
+  }
+  res.json(credentials);
 });
 
 if (existsSync(builtClient)) {

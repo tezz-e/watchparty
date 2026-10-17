@@ -15,6 +15,7 @@ import {
 import { cleanText, validMediaUrl, validMemberId, validRoomId } from "./validation.js";
 import { publishPlayback } from "./telemetry.js";
 import { mediaProvider } from "../shared/media.js";
+import { canPublishScreen, liveKitService } from "./livekit.js";
 
 const moodByEmoji = { "✨": "uplifting", "♥": "cozy", "⚡": "energetic", "👏": "thrilling", "😂": "playful" };
 
@@ -273,6 +274,26 @@ export function registerSocketHandlers(io) {
       room.version += 1;
       publishPresence(room);
       publishState(room);
+    });
+
+    socket.on("screen:ticket", (_payload, acknowledge) => {
+      const room = roomFor(socket);
+      const member = room?.members.get(socket.data.memberId);
+      if (!room || !member?.online || member.socketId !== socket.id) {
+        if (typeof acknowledge === "function") acknowledge({ error: "Join the room before requesting screen sharing." });
+        return;
+      }
+      const ticket = liveKitService.issueTicket({
+        roomId: room.id,
+        memberId: member.id,
+        name: member.name,
+        canPublish: canPublishScreen(room, member.id),
+      });
+      if (!ticket) {
+        if (typeof acknowledge === "function") acknowledge({ error: "LiveKit screen sharing is not configured on this server." });
+        return;
+      }
+      if (typeof acknowledge === "function") acknowledge({ ticket });
     });
 
     socket.on("chat:send", ({ text } = {}) => {

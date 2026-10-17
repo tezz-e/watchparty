@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { createMemberId, desiredPosition } from "../utils/watchParty.js";
 import { applyLocalClockOffset, clampLocalClockOffset, correctionZone, createClockOffsetEstimator } from "../utils/playbackSync.js";
@@ -173,6 +173,21 @@ export function useRoomSession(profile, room) {
   }, [state.playing, state.position, state.updatedAt, config.source, provider, clockOffset]);
 
   const send = (event, payload) => socket.current?.emit(event, payload);
+  const requestScreenTicket = useCallback(() => new Promise((resolve, reject) => {
+    if (!socket.current?.connected) {
+      reject(new Error("Reconnect to the room before starting screen sharing."));
+      return;
+    }
+    socket.current.timeout(5_000).emit("screen:ticket", {}, (timeoutError, response) => {
+      if (timeoutError) {
+        reject(new Error("The room did not respond to the screen-share request."));
+      } else if (!response?.ticket) {
+        reject(new Error(response?.error || "The room could not authorize screen sharing."));
+      } else {
+        resolve(response.ticket);
+      }
+    });
+  }), []);
   const sendPlayback = (playing, position) => { if (!hasRemote) return setNotice("The host has the remote."); socket.current?.emit("playback:update", { playing, position, version: stateRef.current.version, sentAt: Date.now() }); };
   const togglePlayback = () => {
     const playing = !stateRef.current.playing;
@@ -204,5 +219,5 @@ export function useRoomSession(profile, room) {
   }, [provider, config.source, hasRemote]);
   const share = async () => { await navigator.clipboard?.writeText(`${location.origin}/?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); };
 
-  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
+  return { state, connected, selfId, members, messages, reaction, copied, latency, notice, video, youtube, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current };
 }

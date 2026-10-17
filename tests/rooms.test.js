@@ -95,12 +95,33 @@ before(async () => {
   writeFileSync(join(mediaDirectory, "sample_clip.mp4"), "0123456789");
   writeFileSync(join(mediaDirectory, "ignore.txt"), "not media");
   child = spawn(process.execPath, [serverFile], {
-    env: { ...process.env, PORT: String(port), RECONNECT_GRACE_MS: "350", MEDIA_DIR: mediaDirectory },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      RECONNECT_GRACE_MS: "350",
+      MEDIA_DIR: mediaDirectory,
+      LIVEKIT_URL: "",
+      LIVEKIT_API_KEY: "",
+      LIVEKIT_API_SECRET: "",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.setEncoding("utf8").on("data", text => { serverOutput += text; });
   child.stderr.setEncoding("utf8").on("data", text => { serverOutput += text; });
   await waitForHealth(baseUrl);
+});
+
+test("LiveKit remains explicitly unavailable when credentials are not configured", async () => {
+  const status = await fetch(`${baseUrl}/api/livekit/status`);
+  assert.deepEqual(await status.json(), { enabled: false });
+
+  const missingTicket = await fetch(`${baseUrl}/api/livekit/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(missingTicket.status, 503);
+  assert.match((await missingTicket.json()).error, /not configured/i);
 });
 
 afterEach(() => {

@@ -1,0 +1,4 @@
+:7880 {
+	tls /certs/afterglow-cert.pem /certs/afterglow-key.pem
+	reverse_proxy livekit:7880
+}

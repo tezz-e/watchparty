@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
 import { tints } from "../data/catalog.js";
 import { formatTime } from "../utils/watchParty.js";
 import { useRoomSession } from "../hooks/useRoomSession.js";
 import "./YoutubePlayer.css";
+
+const LiveKitScreen = lazy(() => import("./LiveKitScreen.jsx"));
 
 export default function Room({ profile, room, onLeave }) {
   const [draft, setDraft] = useState("");
@@ -16,6 +18,7 @@ export default function Room({ profile, room, onLeave }) {
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
     togglePlayback, onTime, share, externalReady, setExternalReady,
     localOffset, updateLocalOffset, getServerNow,
+    requestScreenTicket,
   } = useRoomSession(profile, room);
   const poll = state.poll || { options: [], votes: {} };
   const votes = Object.values(poll.votes || {});
@@ -119,6 +122,9 @@ export default function Room({ profile, room, onLeave }) {
               <button className="plain-icon"><Icon name="sound"/></button>
               <button className="plain-icon"><Icon name="expand"/></button>
             </div>
+            <Suspense fallback={null}>
+              <LiveKitScreen roomId={room.id} connected={connected} canPublish={hasRemote} requestTicket={requestScreenTicket}/>
+            </Suspense>
           </div>
           {provider === "external" && (
             <section className="external-room-controls">

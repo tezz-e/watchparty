@@ -4,5 +4,6 @@ dist/
 .env.local
 .env.*
 !.env.example
+/certs/
 /media/*
 !/media/README.md
