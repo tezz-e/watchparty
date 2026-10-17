@@ -41,14 +41,16 @@ export default function Room({ profile, room, onLeave }) {
       <header className="room-nav">
         <button className="back-button" onClick={onLeave}>← Lobby</button>
         <Wordmark/>
-        <div className="room-status">
-          <span className={connected ? "status-led" : "status-led dim"}/>
-          <span>{connected ? "LIVE SYNC" : "RECONNECTING"}</span>
-          <b>{latency === null ? "— ms" : `${latency} ms`}</b>
+        <div className="room-actions">
+          <div className="room-status">
+            <span className={connected ? "status-led" : "status-led dim"}/>
+            <span>{connected ? "LIVE SYNC" : "RECONNECTING"}</span>
+            <b>{latency === null ? "— ms" : `${latency} ms`}</b>
+          </div>
+          <button className="invite-compact" onClick={share}>
+            {copied ? "LINK COPIED" : "INVITE"}<Icon name="share" size={15}/>
+          </button>
         </div>
-        <button className="invite-compact" onClick={share}>
-          {copied ? "LINK COPIED" : "INVITE"}<Icon name="share" size={15}/>
-        </button>
       </header>
       {notice && <div className="room-notice">{notice}</div>}
       <main className="room-layout">
