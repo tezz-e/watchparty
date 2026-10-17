@@ -1,11 +1,17 @@
 export function createMemberId() {
-  const key = "afterglow-member-id";
-  let id = sessionStorage.getItem(key);
-  if (!id) {
-    id = globalThis.crypto?.randomUUID?.().replaceAll("-", "") || `member${Math.random().toString(36).slice(2)}${Date.now()}`;
-    sessionStorage.setItem(key, id);
+  if (typeof window !== "undefined") {
+    if (!window.name) {
+      window.name = `tab-${globalThis.crypto?.randomUUID?.().replaceAll("-", "") || Math.random().toString(36).slice(2)}`;
+    }
+    const key = `afterglow-member-id-${window.name}`;
+    let id = sessionStorage.getItem(key);
+    if (!id) {
+      id = globalThis.crypto?.randomUUID?.().replaceAll("-", "") || `member${Math.random().toString(36).slice(2)}${Date.now()}`;
+      sessionStorage.setItem(key, id);
+    }
+    return id;
   }
-  return id;
+  return `member${Math.random().toString(36).slice(2)}${Date.now()}`;
 }
 
 export function fuzzyMatch(text, query) {

@@ -48,8 +48,27 @@ export function createYoutubePlayer(container, videoId, {
   let instance = null;
   let destroyed = false;
 
+  if (container?.isConnected === false) {
+    onError("container-detached");
+    return {
+      ready: Promise.resolve(),
+      currentTime: () => 0,
+      duration: () => 0,
+      getTitle: () => "",
+      seek: () => {},
+      setPlaybackRate: () => {},
+      play: () => {},
+      pause: () => {},
+      destroy: () => {},
+    };
+  }
+
   const ready = loadApi().then(YT => {
     if (destroyed) return;
+    if (container?.isConnected === false) {
+      onError("container-detached");
+      return;
+    }
     instance = new YT.Player(container, {
       videoId,
       playerVars: { controls: 0, disablekb: 1, enablejsapi: 1, playsinline: 1, origin: typeof window === "undefined" ? "" : window.location.origin },
@@ -77,6 +96,7 @@ export function createYoutubePlayer(container, videoId, {
     ready,
     currentTime: () => instance?.getCurrentTime?.() ?? 0,
     duration: () => instance?.getDuration?.() ?? 0,
+    getTitle: () => instance?.getVideoData?.()?.title || "",
     seek: position => instance?.seekTo?.(position, true),
     setPlaybackRate: rate => instance?.setPlaybackRate?.(rate),
     play: () => instance?.playVideo?.(),

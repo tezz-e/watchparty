@@ -10,6 +10,7 @@ import { MAX_MEMBERS, RECONNECT_GRACE_MS, rooms } from "./server/rooms.js";
 import { serverLatencyMetrics, serverTelemetry } from "./server/telemetry.js";
 import { canPublishScreen, liveKitService } from "./server/livekit.js";
 import { getInviteOrigin } from "./server/inviteOrigin.js";
+import { youtubeVideoId } from "./shared/media.js";
 
 const app = express();
 app.set("trust proxy", true);
@@ -58,6 +59,31 @@ app.get("/api/invite-origin", (req, res) => {
 
 app.get("/api/library", async (_req, res) => {
   res.json(await listLibraryItems(mediaDirectory));
+});
+
+app.get("/api/media-title", async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl || typeof targetUrl !== "string") {
+    res.status(400).json({ error: "A valid url query parameter is required." });
+    return;
+  }
+  const ytId = youtubeVideoId(targetUrl);
+  if (!ytId) {
+    res.status(400).json({ error: "Only supported media URLs are eligible for metadata resolution." });
+    return;
+  }
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${ytId}`)}&format=json`;
+    const response = await fetch(oembedUrl);
+    if (!response.ok) {
+      res.status(response.status).json({ error: "Failed to fetch oEmbed metadata." });
+      return;
+    }
+    const data = await response.json();
+    res.json({ title: data.title || null, author: data.author_name || null });
+  } catch {
+    res.status(502).json({ error: "Could not reach the upstream metadata provider." });
+  }
 });
 
 app.get("/media/:filename", (req, res, next) => {

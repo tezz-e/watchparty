@@ -44,6 +44,7 @@ export function registerSocketHandlers(io) {
 
       if (existing?.socketId && existing.socketId !== socket.id) {
         const prior = io.sockets.sockets.get(existing.socketId);
+        prior?.emit("room:error", { code: "session-replaced", message: "This room was opened in another tab." });
         prior?.disconnect(true);
       }
       const member = existing || { id: memberId, joinedAt: now() };
@@ -106,6 +107,10 @@ export function registerSocketHandlers(io) {
         source: cleanText(source, "", 1000),
         control: control === "shared" ? "shared" : "host",
       };
+      if (room.screenShare && !canPublishScreen(room, room.screenShare.sharerMemberId)) {
+        room.screenShare = null;
+        io.to(room.id).emit("webrtc:sharing-status", null);
+      }
       room.position = 0;
       room.playing = false;
       room.externalStarted = false;
@@ -121,7 +126,7 @@ export function registerSocketHandlers(io) {
       publishState(room);
     });
 
-    socket.on("playback:update", ({ playing, position, version, sentAt } = {}) => {
+    socket.on("playback:update", ({ playing, position, version, sentAt, heartbeat } = {}) => {
       const room = roomFor(socket);
       if (!room) return;
       settleExternalCountdown(room);
@@ -131,9 +136,10 @@ export function registerSocketHandlers(io) {
         return reject(socket, "external-countdown-required", "Use the ready check to start a sync-only room.");
       }
       if (!Number.isFinite(position) || position < 0 || position > 86_400) return reject(socket, "invalid-position", "That playback position is invalid.");
-      if (Number.isFinite(version) && version < room.version) {
-        socket.emit("room:state", roomSnapshot(room));
-        return;
+      if (heartbeat) {
+        if (Number.isFinite(version) && version < room.version) {
+          return;
+        }
       }
       room.playing = Boolean(playing);
       room.position = position;
@@ -302,16 +308,28 @@ export function registerSocketHandlers(io) {
       const canControl = room.config.control === "shared" || isHost(room, socket);
       if (!canControl) return reject(socket, "host-controls", "The host has the remote.");
       if (typeof source !== "string" || !validMediaUrl(source)) return reject(socket, "invalid-source", "Provide a supported media URL.");
+      const isReelScroll = mediaProvider(room.config.source) === "instagram" &&
+                           mediaProvider(source) === "instagram" &&
+                           Boolean(room.externalStarted);
+
       room.config = { ...room.config, title: typeof title === "string" && title.trim() ? title.trim() : "Shared Video", source };
       room.position = 0;
-      room.playing = false;
       room.activePlaylistItemId = null;
       room.reactionHeatmap = [];
       room.reactionHighlights = null;
-      room.externalStarted = false;
-      room.externalCountdown = null;
-      for (const member of room.members.values()) member.externalReady = false;
-      room.updatedAt = now();
+
+      if (isReelScroll) {
+        room.externalStarted = true;
+        room.playing = true;
+        room.externalCountdown = null;
+        room.updatedAt = now();
+      } else {
+        room.playing = false;
+        room.externalStarted = false;
+        room.externalCountdown = null;
+        for (const member of room.members.values()) member.externalReady = false;
+        room.updatedAt = now();
+      }
       room.version += 1;
       io.to(room.id).emit("room:config", room.config);
       publishPresence(room);
@@ -322,6 +340,9 @@ export function registerSocketHandlers(io) {
       const room = roomFor(socket);
       if (!room) return;
       if (!canPublishScreen(room, socket.data.memberId)) return reject(socket, "permission-denied", "Only host or remote holder can share screen.");
+      if (room.screenShare && room.screenShare.sharerMemberId !== socket.data.memberId) {
+        return reject(socket, "already-sharing", "Another member is already sharing their screen.");
+      }
       room.screenShare = {
         sharerSocketId: socket.id,
         sharerMemberId: socket.data.memberId,
@@ -343,16 +364,43 @@ export function registerSocketHandlers(io) {
 
     socket.on("webrtc:signal", ({ toMemberId, signal } = {}) => {
       const room = roomFor(socket);
-      if (!room) return;
+      if (!room || !room.screenShare) return;
+      if (!signal || typeof signal !== "object") return;
+      const validTypes = new Set(["offer", "answer", "candidate"]);
+      if (typeof signal.type !== "string" || !validTypes.has(signal.type)) return;
+
+      const sharerId = room.screenShare.sharerMemberId;
+      const senderId = socket.data.memberId;
+
+      if (signal.type === "offer") {
+        if (senderId !== sharerId) return;
+      } else {
+        if (senderId !== sharerId && toMemberId !== sharerId) return;
+      }
+
       for (const [sId, member] of room.members.entries()) {
         if (member.id === toMemberId && member.online && member.socketId) {
           io.to(member.socketId).emit("webrtc:signal", {
-            fromMemberId: socket.data.memberId,
+            fromMemberId: senderId,
             fromSocketId: socket.id,
             signal,
           });
           break;
         }
+      }
+    });
+
+    socket.on("webrtc:request-offer", ({ toMemberId } = {}) => {
+      const room = roomFor(socket);
+      if (!room || !room.screenShare) return;
+      const sharerId = room.screenShare.sharerMemberId;
+      if (!toMemberId || toMemberId !== sharerId) return;
+
+      const sharer = room.members.get(sharerId);
+      if (sharer && sharer.online && sharer.socketId) {
+        io.to(sharer.socketId).emit("webrtc:request-offer", {
+          fromMemberId: socket.data.memberId,
+        });
       }
     });
 
@@ -406,7 +454,7 @@ export function registerSocketHandlers(io) {
       if (next) {
         room.config = { ...room.config, title: next.title, source: next.source };
         room.position = 0;
-        room.playing = true;
+        room.playing = !isSyncOnly(next.source);
         room.activePlaylistItemId = next.id;
         room.playlist = room.playlist.filter(item => item.id !== next.id);
         room.reactionHeatmap = [];
@@ -426,6 +474,10 @@ export function registerSocketHandlers(io) {
       const target = room?.members.get(memberId);
       if (!room || !isHost(room, socket) || !target?.online) return reject(socket, "transfer-failed", "Choose an online participant to host.");
       room.hostId = target.id;
+      if (room.screenShare && !canPublishScreen(room, room.screenShare.sharerMemberId)) {
+        room.screenShare = null;
+        io.to(room.id).emit("webrtc:sharing-status", null);
+      }
       room.version += 1;
       publishPresence(room);
       publishState(room);

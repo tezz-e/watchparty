@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { isMixedContent, mediaProvider, streamingPlatform, validMediaUrl } from "../data/catalog.js";
+import { useRef, useState } from "react";
+import { isMixedContent, mediaProvider, streamingPlatform, validMediaUrl, youtubeVideoId } from "../data/catalog.js";
 import { catalog, searchCatalog } from "../data/localCatalog.js";
+import { fetchMediaTitle } from "../utils/mediaTitle.js";
 import { Icon } from "./Primitives.jsx";
 
 export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentTitle = "", onUpdate, theme = "green" }) {
@@ -8,6 +9,8 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
   const [source, setSource] = useState("");
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
+  const [isFetchingTitle, setIsFetchingTitle] = useState(false);
+  const userEditedTitle = useRef(false);
 
   if (!isOpen) return null;
 
@@ -17,10 +20,28 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
   const mixedContent = isMixedContent(source, typeof window !== "undefined" ? window.location.protocol : "http:");
   const canSubmit = validSource && !mixedContent;
 
-  const handleSubmitLink = event => {
+  const handleSourceChange = async e => {
+    const nextSource = e.target.value;
+    setSource(nextSource);
+    if (youtubeVideoId(nextSource)) {
+      const defaultTitles = new Set(["Friday, but make it quiet", "Blender Nature Short", "Blender Foundation - Big Buck Bunny 4K", "YouTube Video"]);
+      if (!userEditedTitle.current || defaultTitles.has(title) || !title.trim()) {
+        setIsFetchingTitle(true);
+        const resolved = await fetchMediaTitle(nextSource);
+        setIsFetchingTitle(false);
+        if (resolved) setTitle(resolved);
+      }
+    }
+  };
+
+  const handleSubmitLink = async event => {
     event.preventDefault();
     if (!canSubmit) return;
-    const finalTitle = title.trim() || (provider === "youtube" ? "YouTube Video" : provider === "instagram" ? "Instagram Reel" : platform?.name ? `${platform.name} Watch Party` : "Shared Video");
+    let finalTitle = title.trim();
+    if (!finalTitle && provider === "youtube") {
+      finalTitle = (await fetchMediaTitle(source)) || "YouTube Video";
+    }
+    finalTitle = finalTitle || (provider === "youtube" ? "YouTube Video" : provider === "instagram" ? "Instagram Reel" : platform?.name ? `${platform.name} Watch Party` : "Shared Video");
     onUpdate({ title: finalTitle, source: source.trim() });
     onClose();
   };
@@ -66,11 +87,12 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
         {tab === "link" && (
           <form onSubmit={handleSubmitLink} className="change-media-form">
             <label className="field-label">
-              NEW VIDEO URL
+              <span>NEW VIDEO URL</span>
+              {isFetchingTitle && <small style={{ float: "right", color: "var(--theme-highlight, #d7ff9a)", font: "9px DM Mono" }}>Fetching video title…</small>}
               <input
                 autoFocus
                 value={source}
-                onChange={e => setSource(e.target.value)}
+                onChange={handleSourceChange}
                 placeholder="Paste YouTube, Instagram Reel, direct MP4/HLS, or streaming link"
                 aria-invalid={Boolean(source) && !validSource}
               />
@@ -80,7 +102,10 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
               TITLE (OPTIONAL)
               <input
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={e => {
+                  userEditedTitle.current = true;
+                  setTitle(e.target.value);
+                }}
                 placeholder="e.g. My Favorite Movie or Clip"
                 maxLength={80}
               />
@@ -91,8 +116,9 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
               <button
                 type="button"
                 onClick={() => {
-                  setTitle("Blender Nature Short");
+                  setTitle("Blender Foundation - Big Buck Bunny 4K");
                   setSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ");
+                  userEditedTitle.current = false;
                 }}
               >
                 YouTube Trailer

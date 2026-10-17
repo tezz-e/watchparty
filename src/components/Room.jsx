@@ -18,17 +18,20 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [pollOptions, setPollOptions] = useState([{ label: "", source: "" }, { label: "", source: "" }]);
   const [creatingPoll, setCreatingPoll] = useState(false);
   const [changeMediaOpen, setChangeMediaOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [, setCountdownTick] = useState(0);
   const {
     socket,
-    state, connected, selfId, members, messages, reaction, copied, latency, notice, setNotice,
-    video, youtube, provider, platform, reportBuffering, reportMediaFailure,
+    state, connected, selfId, members, messages, reaction, reactions, copied, latency, notice, setNotice,
+    video, youtubeHost, provider, platform, reportBuffering, reportMediaFailure,
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
     togglePlayback, onTime, endPlayback, share, externalReady, setExternalReady,
     localOffset, updateLocalOffset, getServerNow,
     requestScreenTicket,
+    needsGesture, setNeedsGesture, handleJoinPlayback, sessionReplaced, reconnectThisTab,
   } = useRoomSession(profile, room);
 
+  const canPublishScreen = state.hostId === selfId || state.config?.control === "shared";
   const {
     stream: screenStream,
     isSharing: isSharingScreen,
@@ -40,7 +43,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
     selfId,
     members,
     screenShareState: state.screenShare,
-    canPublish: hasRemote,
+    canPublish: canPublishScreen,
     onNotice: setNotice,
   });
 
@@ -59,7 +62,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const duration = isSyncOnly ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
   const position = getDesiredPosition();
   const posterUrl = getMediaPoster(config.source, config.title);
-  const isStartingPlayback = !state.playing && position < 1 && !screenStream && !activeScreenShare && provider !== "external";
+  const isStartingPlayback = !state.playing && position < 1 && !screenStream && !activeScreenShare && !isSyncOnly;
   const telemetry = state.telemetry || {};
   const onlineMembers = members.filter(member => member.online);
   const readyMembers = onlineMembers.filter(member => member.externalReady);
@@ -120,7 +123,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   return (
     <SoftField className="room-page" theme={theme}>
       <header className="room-nav">
-        <button className="back-button" onClick={onLeave}>← Lobby</button>
+        <button className="back-button" onClick={() => setConfirmLeave(true)}>← Lobby</button>
         <Wordmark/>
         <div className="room-actions">
           {hasRemote && (
@@ -145,6 +148,52 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
           </button>
         </div>
       </header>
+      {sessionReplaced && (
+        <div className="session-replaced-banner" role="alert">
+          <div className="session-replaced-content">
+            <Icon name="device" size={16} />
+            <span>This room was opened in another tab.</span>
+          </div>
+          <button
+            type="button"
+            className="session-reconnect-btn"
+            onClick={reconnectThisTab}
+          >
+            Use this tab again
+          </button>
+        </div>
+      )}
+      {confirmLeave && (
+        <div className="modal-backdrop" data-theme={theme} onClick={() => setConfirmLeave(false)}>
+          <div className="setup-modal leave-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="setup-head">
+              <span className="eyebrow"><span />LEAVE ROOM</span>
+              <h2>Leave this watch party?</h2>
+              <p>
+                {state.hostId === selfId && onlineMembers.length > 1
+                  ? "You are currently the room host. If you leave, another member will be chosen to steer the room."
+                  : "You can rejoin at any time using your room code or the rejoin button in the lobby."}
+              </p>
+            </div>
+            <div className="modal-actions" style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
+              <button type="button" className="secondary-action" onClick={() => setConfirmLeave(false)}>
+                Stay in Room
+              </button>
+              <button
+                type="button"
+                className="primary-action"
+                style={{ background: "#dc2626", borderColor: "#b91c1c", color: "#fff" }}
+                onClick={() => {
+                  setConfirmLeave(false);
+                  onLeave();
+                }}
+              >
+                Leave to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {notice && <div className="room-notice">{notice}</div>}
       <main className="room-layout">
         <section className="view-deck">
@@ -177,7 +226,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             </div>
           </div>
           <div className={`screen-chassis ${provider === "instagram" ? "instagram-active" : ""}`}>
-            {provider === "youtube" && <div className="youtube-player"><div ref={youtube}/></div>}
+            {provider === "youtube" && <div ref={youtubeHost} className="youtube-player"/>}
             {(provider === "url" || provider === "hls") && (
               <video
                 ref={video}
@@ -187,6 +236,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 onWaiting={() => reportBuffering(true)}
                 onPlaying={() => {
                   reportBuffering(false);
+                  setNeedsGesture?.(false);
                   if (hasRemote && !state.playing) {
                     sendPlayback(true, video.current?.currentTime || 0);
                   }
@@ -431,7 +481,20 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               <span>{config.source ? "READY TO SYNCHRONIZE" : "CHOOSE A VIDEO FROM THE QUEUE"}</span>
               <div className="orbital-art"><i/><i/><i/></div>
             </div>
-            {reaction && <div className="reaction-pop">{reaction}</div>}
+            {reactions.map(r => (
+              <div key={r.id} className="reaction-pop">{r.emoji}</div>
+            ))}
+            {needsGesture && (
+              <button
+                type="button"
+                className="full-stage-gesture-btn"
+                onClick={handleJoinPlayback}
+                aria-label="Tap to join playback"
+              >
+                <Icon name="play" size={32} />
+                <span>Tap to join playback</span>
+              </button>
+            )}
             <div className="watching-rack">
               {members.slice(0, 5).map((member, index) => (
                 <Avatar key={member.id} name={member.name} tint={tints[index % 4]} small/>

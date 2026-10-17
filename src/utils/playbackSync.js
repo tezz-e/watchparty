@@ -46,3 +46,26 @@ export function correctionZone(drift, { supportsPlaybackRate = true, seekThresho
 
 export const clampLocalClockOffset = offset => Math.max(-15, Math.min(15, Math.round(offset * 4) / 4));
 export const applyLocalClockOffset = (position, offset) => Math.max(0, position + offset);
+
+export function shouldSendHeartbeat({
+  hasRemote,
+  playing,
+  ready,
+  buffering,
+  drift,
+  isHost,
+  lastHeartbeatAt = 0,
+  now = Date.now(),
+  intervalMs = 2000,
+  maxDrift = 2,
+} = {}) {
+  if (!isHost) return false;
+  if (!hasRemote) return false;
+  if (!playing) return false;
+  if (!ready) return false;
+  if (buffering) return false;
+  if (typeof drift === "number" && Math.abs(drift) > maxDrift) return false;
+  if (now - lastHeartbeatAt < intervalMs) return false;
+  return true;
+}
+

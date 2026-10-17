@@ -276,6 +276,19 @@ test("local library lists video files and serves byte ranges", async () => {
   assert.equal((await fetch(`${baseUrl}/media/ignore.txt`)).status, 404);
 });
 
+test("media-title endpoint validates URLs and resolves metadata", async () => {
+  const missing = await fetch(`${baseUrl}/api/media-title`);
+  assert.equal(missing.status, 400);
+
+  const invalid = await fetch(`${baseUrl}/api/media-title?url=${encodeURIComponent("https://example.com/not-youtube")}`);
+  assert.equal(invalid.status, 400);
+
+  const valid = await fetch(`${baseUrl}/api/media-title?url=${encodeURIComponent("https://www.youtube.com/watch?v=aqz-KE-bpKQ")}`);
+  assert.equal(valid.status, 200);
+  const data = await valid.json();
+  assert.ok(data.title);
+});
+
 test("latency metrics endpoint reports server delivery percentiles", async () => {
   const host = await connect("metrics-host-0001");
   await createRoom(host);
@@ -644,4 +657,228 @@ test("host or remote holder can start/stop screen sharing and relay WebRTC signa
   const [stopStatus] = await stopStatusPromise;
   assert.equal(stopStatus, null);
 });
+
+test("screen-share signals prevent hijacking by rejecting offers from non-sharers", async () => {
+  const host = await connect("hijack-host-0001");
+  const { roomId } = await createRoom(host, { control: "host" });
+  const viewerA = await connect("hijack-viewer-a");
+  await joinRoom(viewerA, roomId);
+  const viewerB = await connect("hijack-viewer-b");
+  await joinRoom(viewerB, roomId);
+
+  const sharingStatusPromise = eventOnce(viewerA.socket, "webrtc:sharing-status");
+  host.socket.emit("webrtc:start-share", { title: "Host Screen" });
+  const [sharingStatus] = await sharingStatusPromise;
+  assert.equal(sharingStatus.sharerMemberId, host.memberId);
+
+  let viewerBReceivedOffer = false;
+  const signalHandler = args => {
+    if (args?.signal?.type === "offer" && args?.fromMemberId === viewerA.memberId) {
+      viewerBReceivedOffer = true;
+    }
+  };
+  viewerB.socket.on("webrtc:signal", signalHandler);
+
+  viewerA.socket.emit("webrtc:signal", {
+    toMemberId: viewerB.memberId,
+    signal: { type: "offer", offer: { sdp: "hijack-sdp", type: "offer" } },
+  });
+
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(viewerBReceivedOffer, false);
+  viewerB.socket.off("webrtc:signal", signalHandler);
+
+  const realSignalPromise = eventOnce(viewerB.socket, "webrtc:signal");
+  host.socket.emit("webrtc:signal", {
+    toMemberId: viewerB.memberId,
+    signal: { type: "offer", offer: { sdp: "legit-sdp", type: "offer" } },
+  });
+  const [receivedSignal] = await realSignalPromise;
+  assert.equal(receivedSignal.fromMemberId, host.memberId);
+  assert.equal(receivedSignal.signal.offer.sdp, "legit-sdp");
+});
+
+test("second sharer is rejected with already-sharing error while first sharer remains active", async () => {
+  const host = await connect("share-limit-host");
+  const { roomId } = await createRoom(host, { control: "shared" });
+  const memberA = await connect("share-limit-a");
+  await joinRoom(memberA, roomId);
+  const memberB = await connect("share-limit-b");
+  await joinRoom(memberB, roomId);
+
+  const shareStatusPromise = eventOnce(memberB.socket, "webrtc:sharing-status");
+  memberA.socket.emit("webrtc:start-share", { title: "Member A Screen" });
+  const [shareStatus] = await shareStatusPromise;
+  assert.equal(shareStatus.sharerMemberId, memberA.memberId);
+
+  const errorPromise = eventOnce(memberB.socket, "room:error");
+  memberB.socket.emit("webrtc:start-share", { title: "Member B Screen" });
+  const [error] = await errorPromise;
+  assert.equal(error.code, "already-sharing");
+
+  const signalPromise = eventOnce(memberB.socket, "webrtc:signal");
+  memberA.socket.emit("webrtc:signal", {
+    toMemberId: memberB.memberId,
+    signal: { type: "offer", offer: { sdp: "member-a-sdp", type: "offer" } },
+  });
+  const [relayed] = await signalPromise;
+  assert.equal(relayed.fromMemberId, memberA.memberId);
+
+  const clearPromise = eventOnce(memberA.socket, "webrtc:sharing-status");
+  host.socket.emit("room:configure", { source: sampleUrl, control: "host" });
+  const [cleared] = await clearPromise;
+  assert.equal(cleared, null);
+});
+
+test("auto-advance into sync-only item sets playing to false and enables ready-check and countdown flow", async () => {
+  const host = await connect("advance-host-0001");
+  const { roomId } = await createRoom(host, { source: sampleUrl });
+  const viewer = await connect("advance-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  const playingPromise = eventOnce(host.socket, "playback:state", state => state.playing);
+  host.socket.emit("playback:update", { playing: true, position: 10, version: 0 });
+  const [playingState] = await playingPromise;
+  assert.equal(playingState.playing, true);
+
+  const netflixSource = "https://www.netflix.com/watch/80100172";
+  const queuePromise = eventOnce(host.socket, "playlist:state", list => list.length === 1);
+  host.socket.emit("playlist:add", { title: "Netflix Feature", source: netflixSource });
+  await queuePromise;
+
+  const advancePromise = eventOnce(host.socket, "room:state", state => state.config.source === netflixSource);
+  host.socket.emit("playback:ended", { version: playingState.version });
+  const [advancedState] = await advancePromise;
+
+  assert.equal(advancedState.config.source, netflixSource);
+  assert.equal(advancedState.playing, false);
+  assert.equal(advancedState.externalStarted, false);
+
+  host.socket.emit("external:ready", { ready: true });
+  viewer.socket.emit("external:ready", { ready: true });
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  const countdownPromise = eventOnce(host.socket, "room:state", state => Boolean(state.externalCountdown));
+  host.socket.emit("external:countdown");
+  const [scheduledState] = await countdownPromise;
+  assert.equal(scheduledState.playing, true);
+  assert.equal(scheduledState.externalStarted, false);
+  assert.ok(scheduledState.externalCountdown.startsAt > Date.now());
+});
+
+test("server relays webrtc:request-offer only to current online sharer and drops invalid requests", async () => {
+  const host = await connect("req-offer-host");
+  const { roomId } = await createRoom(host);
+  const viewerA = await connect("req-offer-viewer-a");
+  await joinRoom(viewerA, roomId);
+  const viewerB = await connect("req-offer-viewer-b");
+  await joinRoom(viewerB, roomId);
+
+  // Request when no screenShare exists is dropped
+  let hostReceivedWhenNoShare = false;
+  const noShareHandler = () => { hostReceivedWhenNoShare = true; };
+  host.socket.on("webrtc:request-offer", noShareHandler);
+  viewerA.socket.emit("webrtc:request-offer", { toMemberId: host.memberId });
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(hostReceivedWhenNoShare, false);
+  host.socket.off("webrtc:request-offer", noShareHandler);
+
+  // Host starts screen share
+  const sharingStatusPromise = eventOnce(viewerA.socket, "webrtc:sharing-status");
+  host.socket.emit("webrtc:start-share", { title: "Host Screen" });
+  await sharingStatusPromise;
+
+  // Viewer A sends request-offer targeting a non-sharer (viewerB) -> receives nothing
+  let viewerBReceivedRequest = false;
+  const viewerBHandler = () => { viewerBReceivedRequest = true; };
+  viewerB.socket.on("webrtc:request-offer", viewerBHandler);
+  viewerA.socket.emit("webrtc:request-offer", { toMemberId: viewerB.memberId });
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(viewerBReceivedRequest, false);
+  viewerB.socket.off("webrtc:request-offer", viewerBHandler);
+
+  // Viewer A sends request-offer targeting the legitimate sharer (host) -> receives { fromMemberId: viewerId }
+  const hostRequestPromise = eventOnce(host.socket, "webrtc:request-offer");
+  viewerA.socket.emit("webrtc:request-offer", { toMemberId: host.memberId });
+  const [requestPayload] = await hostRequestPromise;
+  assert.deepEqual(requestPayload, { fromMemberId: viewerA.memberId });
+});
+
+test("host sends heartbeat with version v, then pause with the same v, and the room ends paused", async () => {
+  const host = await connect("pause-race-host");
+  const { roomId } = await createRoom(host, { source: sampleUrl });
+  const viewer = await connect("pause-race-viewer");
+  await joinRoom(viewer, roomId);
+
+  const playingPromise = eventOnce(host.socket, "playback:state", state => state.playing);
+  host.socket.emit("playback:update", { playing: true, position: 10, version: 0 });
+  const [playingState] = await playingPromise;
+  assert.equal(playingState.playing, true);
+  const v = playingState.version;
+
+  const pausedPromise = eventOnce(host.socket, "playback:state", state => !state.playing);
+  host.socket.emit("playback:update", { playing: true, position: 12, version: v, heartbeat: true });
+  host.socket.emit("playback:update", { playing: false, position: 12, version: v });
+
+  const [finalState] = await pausedPromise;
+  assert.equal(finalState.playing, false);
+});
+
+test("reels source transition preserves externalStarted while other transitions reset ready check", async () => {
+  const host = await connect("reels-host-0001");
+  const reel1 = "https://www.instagram.com/reel/C8xY_z12345/";
+  const reel2 = "https://www.instagram.com/reel/D9yZ_a67890/";
+  const { roomId } = await createRoom(host, { source: reel1 });
+  const viewer = await connect("reels-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  host.socket.emit("external:ready", { ready: true });
+  viewer.socket.emit("external:ready", { ready: true });
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  const countdown = eventOnce(host.socket, "room:state", state => Boolean(state.externalCountdown));
+  host.socket.emit("external:countdown");
+  await countdown;
+
+  const started = eventOnce(host.socket, "room:state", state => state.externalStarted, 4000);
+  const [running] = await started;
+  assert.equal(running.externalStarted, true);
+  assert.equal(running.playing, true);
+
+  const reel2StatePromise = eventOnce(host.socket, "room:state", state => state.config.source === reel2);
+  host.socket.emit("room:change-source", { title: "Next Reel", source: reel2 });
+  const [reel2State] = await reel2StatePromise;
+
+  assert.equal(reel2State.config.source, reel2);
+  assert.equal(reel2State.externalStarted, true);
+  assert.equal(reel2State.playing, true);
+  assert.ok(reel2State.position >= 0 && reel2State.position < 0.2);
+
+  const netflixSource = "https://www.netflix.com/title/80057281";
+  const otherStatePromise = eventOnce(host.socket, "room:state", state => state.config.source === netflixSource);
+  host.socket.emit("room:change-source", { title: "Netflix Title", source: netflixSource });
+  const [otherState] = await otherStatePromise;
+
+  assert.equal(otherState.config.source, netflixSource);
+  assert.equal(otherState.externalStarted, false);
+  assert.equal(otherState.playing, false);
+  assert.equal(otherState.position, 0);
+});
+
+test("second join with same memberId kicks first socket with session-replaced error", async () => {
+  const memberId = "duplicate-member-001";
+  const socket1 = await connect(memberId);
+  const { roomId } = await createRoom(socket1);
+
+  const replacedErrorPromise = eventOnce(socket1.socket, "room:error");
+
+  const socket2 = await connect(memberId);
+  await joinRoom(socket2, roomId);
+
+  const [error] = await replacedErrorPromise;
+  assert.equal(error.code, "session-replaced");
+  assert.match(error.message, /another tab/);
+});
+
+
 

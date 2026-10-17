@@ -82,7 +82,7 @@ Room timing and media delivery are decoupled. Each viewer's browser renders medi
 | **Direct MP4 / WebM** | HTML5 `<video>` with Byte-Range Requests | Client-side playback rate adjustments ($0.95\times$–$1.05\times$) and discrete seeking against the server clock. |
 | **Adaptive Streaming (HLS)** | `hls.js` with Native Fallback | Multi-bitrate VOD and live streams with CORS checking and network error recovery. |
 | **Commercial Streaming Services** | Sync-Only Protocol Engine | For Netflix, Disney+, and Prime Video: synchronizes a shared countdown, clock, and readiness check without capturing DRM-protected frames. |
-| **Screen Sharing** | LiveKit WebRTC Screen Video Relay | Optional video-only screen sharing with scoped single-use ticket validation and graceful fallback when unconfigured. |
+| **Screen Sharing** | Mesh WebRTC Screen Video Relay | Peer-to-peer mesh WebRTC screen video streaming (active path). STUN enabled by default with optional TURN relay. LiveKit is currently disabled. |
 
 ---
 
@@ -182,6 +182,11 @@ The repository contains native deployment definitions:
   * `PORT`: Listening port (default `3001`).
   * `AFTERGLOW_PUBLIC_URL`: Canonical public HTTPS URL for generating external invite links.
   * `RECONNECT_GRACE_MS`: Disconnect grace timeout in milliseconds (default `15000`).
+
+### Screen Sharing & WebRTC NAT Traversal (STUN / TURN)
+* **Mesh WebRTC**: Peer-to-peer mesh WebRTC is the active screen sharing implementation. Google and Cloudflare public STUN servers are configured by default.
+* **TURN Relay for CGNAT / Mobile**: Connecting across symmetric NAT or carrier-grade NAT (CGNAT, common on cellular/mobile data networks) requires a TURN relay server. Optional TURN credentials can be configured in the client environment via `VITE_TURN_URL`, `VITE_TURN_USERNAME`, and `VITE_TURN_CREDENTIAL`.
+* **LiveKit Architecture Note**: Mesh WebRTC is the active path and LiveKit is currently disabled. LiveKit client components (`src/components/LiveKitScreen.jsx`), server module (`server/livekit.js`), and `/api/livekit/*` endpoints are retained for optional SFU deployments.
 
 ---
 

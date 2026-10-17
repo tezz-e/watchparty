@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { applyLocalClockOffset, clampLocalClockOffset, correctionZone, createClockOffsetEstimator, estimateClockOffset } from "../src/utils/playbackSync.js";
+import { applyLocalClockOffset, clampLocalClockOffset, correctionZone, createClockOffsetEstimator, estimateClockOffset, shouldSendHeartbeat } from "../src/utils/playbackSync.js";
 import { createHtmlVideoPlayer } from "../src/player/htmlVideoPlayer.js";
 import { desiredPosition } from "../src/utils/watchParty.js";
 
@@ -85,3 +85,27 @@ test("HTML video player adapter exposes playback controls", async () => {
   player.pause();
   assert.equal(element.isPlaying, false);
 });
+
+test("shouldSendHeartbeat gates heartbeats based on host, readiness, buffering, drift, and interval", () => {
+  const base = {
+    hasRemote: true,
+    playing: true,
+    ready: true,
+    buffering: false,
+    drift: 0.2,
+    isHost: true,
+    lastHeartbeatAt: 1000,
+    now: 3500,
+  };
+
+  assert.equal(shouldSendHeartbeat(base), true);
+  assert.equal(shouldSendHeartbeat({ ...base, isHost: false }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, hasRemote: false }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, playing: false }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, ready: false }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, buffering: true }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, drift: 2.1 }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, drift: -2.5 }), false);
+  assert.equal(shouldSendHeartbeat({ ...base, now: 2500 }), false);
+});
+

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl } from "../data/catalog.js";
+import { useEffect, useRef, useState } from "react";
+import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl, youtubeVideoId } from "../data/catalog.js";
 import { catalog, catalogAvailability, catalogCategories, catalogGenres, catalogSnapshot, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
 import { roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
+import { fetchMediaTitle } from "../utils/mediaTitle.js";
 import { Avatar, Icon, SoftField, ThemeSelect, Wordmark } from "./Primitives.jsx";
 
 export function Identity({ onContinue, theme, onThemeChange }) {
@@ -31,7 +32,7 @@ export function Identity({ onContinue, theme, onThemeChange }) {
   );
 }
 
-export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange }) {
+export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange, recentRoom }) {
   const [join, setJoin] = useState(false);
   const [code, setCode] = useState("");
 
@@ -43,7 +44,21 @@ export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange }) {
           <p className="eyebrow"><span/>CONTROL ROOM</p>
           <h1>Good evening,<br/><em>{profile.name}.</em></h1>
           <p>Create a room with an open playable URL, or join an invitation someone has already shared.</p>
-          <div className="lobby-actions"><button className="primary-action" onClick={onCreate}><Icon name="plus"/> Start a room</button><button className="secondary-action" onClick={() => setJoin(!join)}><Icon name="link"/> Join with a code</button></div>
+          <div className="lobby-actions">
+            <button className="primary-action" onClick={onCreate}><Icon name="plus"/> Start a room</button>
+            <button className="secondary-action" onClick={() => setJoin(!join)}><Icon name="link"/> Join with a code</button>
+            {recentRoom?.id && (
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ borderColor: "var(--theme-border, #94bb60)", color: "var(--theme-highlight, #d7ff9a)" }}
+                onClick={() => onJoin(recentRoom.id)}
+                title="Rejoin the room you were recently in"
+              >
+                <Icon name="play" size={14} /> Rejoin {recentRoom.title ? `"${recentRoom.title}"` : "Room"}
+              </button>
+            )}
+          </div>
           {join && <form className="join-tray" onSubmit={event => { event.preventDefault(); if (code.trim()) onJoin(code.trim().toLowerCase()); }}><input autoFocus value={code} onChange={event => setCode(event.target.value.replace(/\s/g, ""))} placeholder="room-code"/><button>Join <Icon name="arrow" size={16}/></button></form>}
         </section>
         <section className="lobby-instrument">
@@ -147,6 +162,8 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
   const [control, setControl] = useState("host");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
+  const [isFetchingTitle, setIsFetchingTitle] = useState(false);
+  const userEditedTitle = useRef(false);
   const validSource = validMediaUrl(source);
   const provider = mediaProvider(source);
   const platform = streamingPlatform(source);
@@ -154,19 +171,37 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
   const canCreate = validSource && !mixedContent && Boolean(title.trim());
   const providerLabel = provider === "youtube" ? "YOUTUBE VIDEO URL" : provider === "hls" ? "HLS STREAM URL" : provider === "instagram" ? "INSTAGRAM REEL / POST LINK" : provider === "external" ? `${platform?.name.toUpperCase()} LINK` : "VIDEO URL";
 
+  const handleSourceChange = async event => {
+    const nextSource = event.target.value;
+    setSource(nextSource);
+    if (youtubeVideoId(nextSource)) {
+      const defaultTitles = new Set(["Friday, but make it quiet", "Blender Nature Short", "Blender Foundation - Big Buck Bunny 4K", "YouTube Video"]);
+      if (!userEditedTitle.current || defaultTitles.has(title) || !title.trim()) {
+        setIsFetchingTitle(true);
+        const resolved = await fetchMediaTitle(nextSource);
+        setIsFetchingTitle(false);
+        if (resolved) setTitle(resolved);
+      }
+    }
+  };
+
   return (
     <div className="modal-backdrop" data-theme={theme}>
       <form className="setup-modal setup-modal-wide" onSubmit={event => { event.preventDefault(); if (canCreate) onEnter({ id: roomId(), title, source, control, kind: provider, create: true }); }}>
         <button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button>
         <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>
-        <label className="field-label">ROOM NAME<input value={title} onChange={event => setTitle(event.target.value)} maxLength="56"/></label>
-        <label className="field-label">{providerLabel}<input value={source} onChange={event => setSource(event.target.value)} placeholder="Paste a video, YouTube, Instagram Reel, or streaming URL" aria-invalid={Boolean(source) && !validSource}/></label>
+        <label className="field-label">ROOM NAME<input value={title} onChange={event => { userEditedTitle.current = true; setTitle(event.target.value); }} maxLength="56"/></label>
+        <label className="field-label">
+          <span>{providerLabel}</span>
+          {isFetchingTitle && <small style={{ float: "right", color: "var(--theme-highlight, #d7ff9a)", font: "9px DM Mono" }}>Fetching video title…</small>}
+          <input value={source} onChange={handleSourceChange} placeholder="Paste a video, YouTube, Instagram Reel, or streaming URL" aria-invalid={Boolean(source) && !validSource}/>
+        </label>
         <div className="quick-source-pills">
           <span>Quick try:</span>
-          <button type="button" onClick={() => { setTitle("Instagram Reel Session"); setSource("https://www.instagram.com/reel/BsOGulcndj-/"); }}>
+          <button type="button" onClick={() => { setTitle("Instagram Reel Session"); setSource("https://www.instagram.com/reel/BsOGulcndj-/"); userEditedTitle.current = false; }}>
             📱 Instagram Reel
           </button>
-          <button type="button" onClick={() => { setTitle("Blender Nature Short"); setSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ"); }}>
+          <button type="button" onClick={() => { setTitle("Blender Foundation - Big Buck Bunny 4K"); setSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ"); userEditedTitle.current = false; }}>
             ▶️ YouTube Video
           </button>
         </div>
