@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 220" width="100%" height="220" fill="none">
+  <defs>
+    <!-- Background Card Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c0e12" />
+      <stop offset="50%" stop-color="#07090b" />
+      <stop offset="100%" stop-color="#040506" />
+    </linearGradient>
+
+    <!-- Glowing Accent Gradient: Amber to Moss to Cyan -->
+    <linearGradient id="brandAura" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.85" />
+      <stop offset="50%" stop-color="#10b981" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.85" />
+    </linearGradient>
+
+    <!-- Icon Core Gradient -->
+    <linearGradient id="iconGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <radialGradient id="radialFlare" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.25" />
+      <stop offset="70%" stop-color="#10b981" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <filter id="glowBlur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Ambient Backdrop -->
+  <rect width="880" height="220" rx="16" fill="url(#bgGrad)" stroke="#22272e" stroke-width="1.5" />
+
+  <!-- Ambient Light Orb behind mark -->
+  <circle cx="120" cy="110" r="90" fill="url(#radialFlare)" filter="url(#glowBlur)" />
+
+  <!-- Grid Tech Lines -->
+  <g stroke="#ffffff" stroke-opacity="0.04" stroke-width="1">
+    <line x1="40" y1="40" x2="840" y2="40" />
+    <line x1="40" y1="180" x2="840" y2="180" />
+    <line x1="220" y1="20" x2="220" y2="200" />
+  </g>
+
+  <!-- LOGO EMBLEM: Precision Cinematic Aperture & Sync Waves -->
+  <g transform="translate(120, 110)">
+    <!-- Outer Sync Wave Ring -->
+    <circle cx="0" cy="0" r="48" stroke="url(#brandAura)" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6" />
+    
+    <!-- Mid Concentric Ring -->
+    <circle cx="0" cy="0" r="36" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1" />
+    
+    <!-- Waveform Equalizer Bars (Tactile Haptic Core) -->
+    <rect x="-24" y="-18" width="6" height="36" rx="3" fill="#f59e0b" />
+    <rect x="-14" y="-28" width="6" height="56" rx="3" fill="#fbbf24" />
+    <rect x="-4"  y="-38" width="8" height="76" rx="4" fill="#34d399" filter="url(#glowBlur)" />
+    <rect x="-4"  y="-38" width="8" height="76" rx="4" fill="#10b981" />
+    <rect x="8"   y="-28" width="6" height="56" rx="3" fill="#38bdf8" />
+    <rect x="18"  y="-18" width="6" height="36" rx="3" fill="#60a5fa" />
+
+    <!-- Pulse Node Satellite -->
+    <circle cx="38" cy="-28" r="4" fill="#f59e0b" />
+    <circle cx="-38" cy="28" r="3" fill="#38bdf8" />
+  </g>
+
+  <!-- TYPOGRAPHY -->
+  <g transform="translate(250, 122)">
+    <!-- Wordmark -->
+    <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif" font-size="52" font-weight="800" letter-spacing="-1.5" fill="#f8fafc">
+      AFTER<tspan fill="url(#iconGlow)">GLOW</tspan>
+    </text>
+
+    <!-- Subtitle / Tagline -->
+    <text x="2" y="32" font-family="'DM Mono', 'SF Mono', Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="2.8" fill="#94a3b8">
+      SYNCHRONIZED WATCH PARTY • ZERO-INSTALL CLOUD &amp; LAN
+    </text>
+
+    <!-- Badges pill line -->
+    <g transform="translate(2, 46)">
+      <!-- Badge 1: WebSockets -->
+      <rect x="0" y="0" width="108" height="20" rx="4" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
+      <text x="54" y="14" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#38bdf8" text-anchor="middle">⚡ &lt;250ms SYNC</text>
+
+      <!-- Badge 2: Multi-Source -->
+      <rect x="116" y="0" width="138" height="20" rx="4" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
+      <text x="185" y="14" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#34d399" text-anchor="middle">🎬 YOUTUBE &amp; REELS</text>
+
+      <!-- Badge 3: Cross Platform -->
+      <rect x="262" y="0" width="112" height="20" rx="4" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
+      <text x="318" y="14" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#fbbf24" text-anchor="middle">📱 ALL PLATFORMS</text>
+    </g>
+  </g>
+</svg>

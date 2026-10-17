@@ -174,9 +174,11 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 ))}
               </section>
             )}
-            <Suspense fallback={null}>
-              <LiveKitScreen roomId={room.id} connected={connected} canPublish={hasRemote} requestTicket={requestScreenTicket}/>
-            </Suspense>
+            {provider !== "instagram" && (
+              <Suspense fallback={null}>
+                <LiveKitScreen roomId={room.id} connected={connected} canPublish={hasRemote} requestTicket={requestScreenTicket} hasSource={Boolean(room.source)}/>
+              </Suspense>
+            )}
           </div>
           {isSyncOnly && (
             <section className="external-room-controls">

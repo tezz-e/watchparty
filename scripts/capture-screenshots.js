@@ -1,0 +1,163 @@
+import { chromium } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+
+import { spawn } from "node:child_process";
+
+const localPort = 3001;
+const targetUrl = `http://127.0.0.1:${localPort}`;
+const assetsDir = path.resolve("assets");
+
+if (!fs.existsSync(assetsDir)) {
+  fs.mkdirSync(assetsDir, { recursive: true });
+}
+
+let serverProcess = null;
+try {
+  await fetch(`${targetUrl}/health`);
+} catch {
+  console.log("Starting local production server on port", localPort);
+  serverProcess = spawn("node", ["server.js"], { env: { ...process.env, PORT: String(localPort) }, stdio: "ignore" });
+  await new Promise(r => setTimeout(r, 1500));
+}
+
+console.log("Launching Chromium to capture production showcase screenshots from:", targetUrl);
+
+const browser = await chromium.launch({ headless: true });
+
+try {
+  // ----------------------------------------------------
+  // 1. Desktop Room View (1440x920)
+  // ----------------------------------------------------
+  console.log("[1/3] Capturing Desktop Room with YouTube & Live Chat...");
+  const desktopContext = await browser.newContext({
+    viewport: { width: 1440, height: 920 },
+    deviceScaleFactor: 2,
+  });
+  const desktopPage = await desktopContext.newPage();
+  await desktopPage.goto(targetUrl, { waitUntil: "networkidle" });
+
+  // Select Amber theme & Enter Identity
+  await desktopPage.getByLabel("Color theme").selectOption("amber");
+  await desktopPage.getByLabel("DISPLAY NAME").fill("Alex");
+  await desktopPage.getByRole("button", { name: /Enter the control room/i }).click();
+  await desktopPage.waitForTimeout(600);
+
+  // Click Start a room
+  await desktopPage.getByRole("button", { name: /Start a room/i }).click();
+  await desktopPage.waitForTimeout(500);
+
+  // Capture Discovery Modal
+  await desktopPage.screenshot({ path: path.join(assetsDir, "discovery-catalog.png") });
+  console.log("Saved assets/discovery-catalog.png");
+
+  // Click Quick Sample: YouTube Video
+  const ytBtn = desktopPage.getByRole("button", { name: /YouTube Video/i });
+  if (await ytBtn.isVisible()) {
+    await ytBtn.click();
+  } else {
+    await desktopPage.getByPlaceholder(/Paste a video/i).fill("https://www.youtube.com/watch?v=aqz-KE-bpKQ");
+  }
+  await desktopPage.waitForTimeout(300);
+
+  // Click Create Room
+  const createBtn = desktopPage.locator(".modal-backdrop .primary-action");
+  await createBtn.click();
+  await desktopPage.waitForTimeout(3000);
+
+  // Send a couple chat messages
+  const chatInput = desktopPage.locator(".chat-composer input, .drawer input[type='text'], input[placeholder*='Say something']");
+  if (await chatInput.isVisible()) {
+    await chatInput.fill("Synced up! Audio and video are in lockstep 🔥");
+    await desktopPage.keyboard.press("Enter");
+    await desktopPage.waitForTimeout(300);
+  }
+
+  // Click a couple emoji reactions
+  const emojis = desktopPage.locator(".emoji-bar button, .reaction-picker button");
+  const eCount = await emojis.count();
+  for (let i = 0; i < Math.min(eCount, 4); i++) {
+    await emojis.nth(i).click().catch(() => {});
+    await desktopPage.waitForTimeout(150);
+  }
+
+  await desktopPage.waitForTimeout(1000);
+  await desktopPage.screenshot({ path: path.join(assetsDir, "desktop-room.png") });
+  console.log("Saved assets/desktop-room.png");
+  await desktopContext.close();
+
+  // ----------------------------------------------------
+  // 2. Mobile View: Instagram Reels Watch Party (390x844 - iPhone 14)
+  // ----------------------------------------------------
+  console.log("[2/3] Capturing Mobile Instagram Reels Watch Party (iPhone 14)...");
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const mobilePage = await mobileContext.newPage();
+  await mobilePage.goto(targetUrl, { waitUntil: "networkidle" });
+
+  await mobilePage.getByLabel("Color theme").selectOption("green");
+  await mobilePage.getByLabel("DISPLAY NAME").fill("Elena");
+  await mobilePage.getByRole("button", { name: /Enter the control room/i }).click();
+  await mobilePage.waitForTimeout(500);
+
+  // Start room with Instagram Reel
+  await mobilePage.getByRole("button", { name: /Start a room/i }).click();
+  await mobilePage.waitForTimeout(400);
+
+  const instaBtn = mobilePage.getByRole("button", { name: /Instagram Reel/i });
+  if (await instaBtn.isVisible()) {
+    await instaBtn.click();
+  } else {
+    await mobilePage.getByPlaceholder(/Paste a video/i).fill("https://www.instagram.com/reel/C8qA31nO4a5/");
+  }
+  await mobilePage.waitForTimeout(300);
+
+  const mobileCreateBtn = mobilePage.locator(".modal-backdrop .primary-action");
+  await mobileCreateBtn.click();
+  await mobilePage.waitForTimeout(3000);
+
+  // Trigger floating reactions
+  const mobileReactionBtns = mobilePage.locator(".floating-reaction-bar button, .reel-controls-hud button, .emoji-bar button");
+  const mCount = await mobileReactionBtns.count();
+  for (let i = 0; i < Math.min(mCount, 3); i++) {
+    await mobileReactionBtns.nth(i).click().catch(() => {});
+    await mobilePage.waitForTimeout(120);
+  }
+
+  await mobilePage.waitForTimeout(800);
+  await mobilePage.screenshot({ path: path.join(assetsDir, "mobile-reel.png") });
+  console.log("Saved assets/mobile-reel.png");
+  await mobileContext.close();
+
+  // ----------------------------------------------------
+  // 3. Lobby / Dashboard View (1440x900)
+  // ----------------------------------------------------
+  console.log("[3/3] Capturing Sleek Control Room Dashboard...");
+  const dashContext = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  const dashPage = await dashContext.newPage();
+  await dashPage.goto(targetUrl, { waitUntil: "networkidle" });
+  await dashPage.getByLabel("Color theme").selectOption("blue");
+  await dashPage.getByLabel("DISPLAY NAME").fill("Sam");
+  await dashPage.getByRole("button", { name: /Enter the control room/i }).click();
+  await dashPage.waitForTimeout(600);
+
+  await dashPage.screenshot({ path: path.join(assetsDir, "dashboard-lobby.png") });
+  console.log("Saved assets/dashboard-lobby.png");
+  await dashContext.close();
+
+  console.log("SUCCESS: All showcase screenshots captured and saved to ./assets!");
+} catch (err) {
+  console.error("Screenshot capture error:", err);
+} finally {
+  await browser.close();
+  if (serverProcess) {
+    serverProcess.kill();
+  }
+}

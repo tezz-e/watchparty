@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Room as LiveKitRoom, RoomEvent, Track } from "livekit-client";
 
-export default function LiveKitScreen({ roomId, connected, canPublish, requestTicket }) {
+export default function LiveKitScreen({ roomId, connected, canPublish, requestTicket, hasSource = false }) {
   const video = useRef(null);
   const liveRoom = useRef(null);
   const shareTrack = useRef(null);
@@ -10,6 +10,7 @@ export default function LiveKitScreen({ roomId, connected, canPublish, requestTi
   const [sharing, setSharing] = useState(false);
   const [localSharing, setLocalSharing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(!hasSource);
 
   useEffect(() => {
     let active = true;
@@ -122,6 +123,34 @@ export default function LiveKitScreen({ roomId, connected, canPublish, requestTi
     }
   };
 
+  if (hasSource && !sharing && !expanded) {
+    return (
+      <div className="livekit-trigger-pill" style={{ position: "absolute", top: 12, right: 12, zIndex: 4, pointerEvents: "auto" }}>
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          title="Toggle screen share"
+          style={{
+            background: "rgba(13, 18, 13, 0.75)",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            color: "var(--accent-tint, #c8ff76)",
+            borderRadius: "6px",
+            padding: "4px 8px",
+            fontSize: "10px",
+            fontFamily: "var(--font-mono, monospace)",
+            cursor: "pointer",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px"
+          }}
+        >
+          <span>🖥️</span> Screen Share
+        </button>
+      </div>
+    );
+  }
+
   return (
     <section className={`livekit-panel ${sharing ? "sharing" : ""}`} aria-label="LiveKit screen sharing">
       <video ref={video} className="livekit-video" autoPlay playsInline muted hidden={!sharing}/>
@@ -135,12 +164,24 @@ export default function LiveKitScreen({ roomId, connected, canPublish, requestTi
             {status === "connected" && (sharing ? (localSharing ? "You are sharing your screen." : "A participant is sharing their screen.") : "Share a tab, window, or screen; video only.")}
           </small>
         </div>
-        {status === "connected" && canPublish && (
-          <button type="button" onClick={toggleScreenShare} disabled={busy || (sharing && !localSharing)}>
-            {busy ? "Please wait…" : localSharing ? "Stop sharing" : sharing ? "Screen in use" : "Share screen"}
-          </button>
-        )}
-        {status === "connected" && !canPublish && <small className="livekit-permission">Host or remote holder can share.</small>}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {status === "connected" && canPublish && (
+            <button type="button" onClick={toggleScreenShare} disabled={busy || (sharing && !localSharing)}>
+              {busy ? "Please wait…" : localSharing ? "Stop sharing" : sharing ? "Screen in use" : "Share screen"}
+            </button>
+          )}
+          {status === "connected" && !canPublish && <small className="livekit-permission">Host or remote holder can share.</small>}
+          {hasSource && !sharing && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              style={{ padding: "4px 8px", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", cursor: "pointer", borderRadius: "4px", fontSize: "11px" }}
+              title="Hide screen share panel"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
       {status === "unavailable" && <p className="livekit-hint">Set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET on the server. Use sync-only mode if a streaming service blocks capture.</p>}
       {error && <p className="livekit-error" role="alert">{error}</p>}
