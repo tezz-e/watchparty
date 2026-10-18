@@ -1,5 +1,5 @@
 export const MAX_MEMBERS = 20;
-export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS) || 30_000;
+export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS) || 15_000;
 export const rooms = new Map();
 export const disconnectTimers = new Map();
 

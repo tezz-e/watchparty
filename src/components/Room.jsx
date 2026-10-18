@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, Wordmark, Avatar, SoftField, ThemeSelect } from "./Primitives.jsx";
 import { Queue } from "./EntryScreens.jsx";
-import { instagramReelId, tints } from "../data/catalog.js";
-import { getReelsFeed } from "../data/reelsFeed.js";
+import { tints } from "../data/catalog.js";
 import { formatTime } from "../utils/watchParty.js";
 import { useRoomSession } from "../hooks/useRoomSession.js";
 import { ChangeMediaModal } from "./ChangeMediaModal.jsx";
@@ -20,15 +19,38 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [changeMediaOpen, setChangeMediaOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [, setCountdownTick] = useState(0);
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  const copyRoomCode = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(room.id);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = room.id;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 1600);
+    } catch (err) {
+      console.error("Unable to copy room code:", err);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 1600);
+    }
+  };
+
   const {
     socket,
-    state, connected, selfId, members, messages, reaction, reactions, copied, latency, notice, setNotice,
+    state, connected, selfId, members, messages, reaction, reactions, sendReaction, removeReaction, copied, latency, notice, setNotice,
     video, youtubeHost, provider, platform, reportBuffering, reportMediaFailure,
     getPlayer, getDesiredPosition, hasRemote, config, send, sendPlayback,
     togglePlayback, onTime, endPlayback, share, externalReady, setExternalReady,
     localOffset, updateLocalOffset, getServerNow,
     requestScreenTicket,
-    needsGesture, setNeedsGesture, handleJoinPlayback, sessionReplaced, reconnectThisTab,
+    needsGesture, setNeedsGesture, handleJoinPlayback, resyncPlayback, sessionReplaced, reconnectThisTab,
   } = useRoomSession(profile, room);
 
   const canPublishScreen = state.hostId === selfId || state.config?.control === "shared";
@@ -58,7 +80,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const votes = Object.values(poll?.votes || {});
   const voteCount = votes.length;
   const player = getPlayer();
-  const isSyncOnly = provider === "external" || provider === "instagram";
+  const isSyncOnly = provider === "external";
   const duration = isSyncOnly ? 86_400 : player?.duration() || Math.max(1, getDesiredPosition() + 1);
   const position = getDesiredPosition();
   const posterUrl = getMediaPoster(config.source, config.title);
@@ -69,50 +91,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const countdownSeconds = state.externalCountdown
     ? Math.max(0, (state.externalCountdown.startsAt - getServerNow()) / 1000)
     : null;
-  const reelId = provider === "instagram" ? instagramReelId(config.source) : null;
-  const reelsFeed = getReelsFeed(config.source, state.playlist || []);
-  const currentReelIndex = Math.max(0, reelsFeed.findIndex(item => item.id === reelId));
-  const canPrevReel = currentReelIndex > 0;
-  const canNextReel = currentReelIndex < reelsFeed.length - 1;
 
-  const navigateReel = useCallback((direction) => {
-    if (!hasRemote) return;
-    const targetIndex = currentReelIndex + direction;
-    if (targetIndex >= 0 && targetIndex < reelsFeed.length) {
-      const nextReel = reelsFeed[targetIndex];
-      send("room:change-source", { title: nextReel.title, source: nextReel.source });
-    }
-  }, [currentReelIndex, hasRemote, reelsFeed, send]);
-
-  const lastWheelTime = useRef(0);
-  const handleReelWheel = e => {
-    if (provider !== "instagram") return;
-    const timestamp = Date.now();
-    if (timestamp - lastWheelTime.current < 450) return;
-    if (e.deltaY > 25) {
-      lastWheelTime.current = timestamp;
-      navigateReel(1);
-    } else if (e.deltaY < -25) {
-      lastWheelTime.current = timestamp;
-      navigateReel(-1);
-    }
-  };
-
-  useEffect(() => {
-    if (provider !== "instagram") return;
-    const handleKeyDown = e => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (e.key === "ArrowDown" || e.key === "PageDown") {
-        e.preventDefault();
-        navigateReel(1);
-      } else if (e.key === "ArrowUp" || e.key === "PageUp") {
-        e.preventDefault();
-        navigateReel(-1);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [provider, navigateReel]);
 
   useEffect(() => {
     if (!isSyncOnly || !state.externalCountdown) return undefined;
@@ -143,6 +122,16 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             <span>{connected ? "LIVE SYNC" : "RECONNECTING"}</span>
             <b>{latency === null ? "— ms" : `${latency} ms`}</b>
           </div>
+          <button
+            type="button"
+            className="room-code-badge"
+            onClick={copyRoomCode}
+            title="Click to copy room code"
+            aria-label="Copy room code"
+          >
+            <span>{codeCopied ? "COPIED" : (room?.id?.toUpperCase() || "")}</span>
+            <Icon name={codeCopied ? "check" : "link"} size={13} />
+          </button>
           <button className="invite-compact" onClick={share}>
             {copied ? "LINK COPIED" : "INVITE"}<Icon name="share" size={15}/>
           </button>
@@ -200,7 +189,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
           <div className="now-line">
             <div className="now-line-title">
               <span>NOW PLAYING</span><b>{config.title}</b><i/>
-              <span>{provider === "external" ? "SHARED CLOCK ONLY" : provider === "instagram" ? "INSTAGRAM REELS SYNC" : hasRemote ? "YOU HAVE THE REMOTE" : "HOST HAS THE REMOTE"}</span>
+              <span>{provider === "external" ? "SHARED CLOCK ONLY" : hasRemote ? "YOU HAVE THE REMOTE" : "HOST HAS THE REMOTE"}</span>
             </div>
             <div className="now-line-actions">
               {hasRemote && (
@@ -225,7 +214,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               </button>
             </div>
           </div>
-          <div className={`screen-chassis ${provider === "instagram" ? "instagram-active" : ""}`}>
+          <div className="screen-chassis">
             {provider === "youtube" && <div ref={youtubeHost} className="youtube-player"/>}
             {(provider === "url" || provider === "hls") && (
               <video
@@ -379,111 +368,30 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 </div>
               </div>
             )}
-            {provider === "instagram" && (
-              <div className="instagram-reel-stage" onWheel={handleReelWheel}>
-                <div className="reel-quick-nav top">
-                  <button
-                    type="button"
-                    className="reel-quick-btn"
-                    disabled={!hasRemote || !canPrevReel}
-                    onClick={() => navigateReel(-1)}
-                    title={hasRemote ? "Previous Reel (↑)" : "Host controls scrolling"}
-                  >
-                    <span>▲ Previous Reel</span>
-                  </button>
-                </div>
-                <div className="instagram-reel-card">
-                  <iframe
-                    key={reelId}
-                    className="instagram-reel-frame"
-                    src={`https://www.instagram.com/reel/${reelId || "reel"}/embed/`}
-                    title={config.title || "Instagram Reel"}
-                    scrolling="no"
-                    allowFullScreen
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                  />
-                </div>
-                <div className="reel-quick-nav bottom">
-                  <button
-                    type="button"
-                    className="reel-quick-btn"
-                    disabled={!hasRemote || !canNextReel}
-                    onClick={() => navigateReel(1)}
-                    title={hasRemote ? "Next Reel (↓)" : "Host controls scrolling"}
-                  >
-                    <span>▼ Next Reel</span>
-                  </button>
-                </div>
-                <div className="reel-scroll-sidebar">
-                  <button
-                    type="button"
-                    className="reel-nav-btn prev"
-                    disabled={!hasRemote || !canPrevReel}
-                    onClick={() => navigateReel(-1)}
-                    title={hasRemote ? "Previous reel (↑ or scroll up)" : "Host controls scrolling"}
-                    aria-label="Previous reel"
-                  >
-                    <Icon name="chevron" size={18}/>
-                  </button>
-                  <div className="reel-counter-badge" title="Current reel in feed">
-                    <span>{currentReelIndex + 1}</span>
-                    <small>/{reelsFeed.length}</small>
-                  </div>
-                  <button
-                    type="button"
-                    className="reel-nav-btn next"
-                    disabled={!hasRemote || !canNextReel}
-                    onClick={() => navigateReel(1)}
-                    title={hasRemote ? "Next reel (↓ or scroll down)" : "Host controls scrolling"}
-                    aria-label="Next reel"
-                  >
-                    <Icon name="chevron" size={18}/>
-                  </button>
-                  {hasRemote && (
-                    <button
-                      type="button"
-                      className="reel-add-btn"
-                      onClick={() => setChangeMediaOpen(true)}
-                      title="Paste or queue a new Reel"
-                      aria-label="Add or switch Reel"
-                    >
-                      <Icon name="plus" size={16}/>
-                    </button>
-                  )}
-                </div>
-                <div className="reel-scroll-hint">
-                  {hasRemote ? "Use ↑ / ↓ arrow keys, Next/Prev buttons, or Screen Share to browse your personal feed" : "Host is scrolling through reels"}
-                </div>
-                <div className="instagram-meta-overlay">
-                  <div className="instagram-badge">
-                    <span className="live-pulse"/>
-                    <span>INSTAGRAM REEL · FEED SYNC</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <button
-                      type="button"
-                      className="instagram-screenshare-btn"
-                      onClick={isSharingScreen ? stopScreenShare : startScreenShare}
-                      title="Stream your own Instagram tab with real-time personal scrolling"
-                    >
-                      <Icon name="device" size={13}/>
-                      <span>{isSharingScreen ? "Stop Screen Share" : "Share My Live Feed"}</span>
-                    </button>
-                    <a href={config.source} target="_blank" rel="noreferrer" className="instagram-open-btn">
-                      <span>Open on Instagram</span>
-                      <Icon name="external" size={13}/>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
+
             <div className="screen-fallback">
               <span>{config.source ? "READY TO SYNCHRONIZE" : "CHOOSE A VIDEO FROM THE QUEUE"}</span>
               <div className="orbital-art"><i/><i/><i/></div>
             </div>
-            {reactions.map(r => (
-              <div key={r.id} className="reaction-pop">{r.emoji}</div>
-            ))}
+            <div className="reaction-stream-overlay" aria-hidden="true">
+              {reactions.map(r => (
+                <div
+                  key={r.id}
+                  className="reaction-stream-item reaction-pop"
+                  style={{
+                    right: `${r.x}px`,
+                    fontSize: `${r.size}px`,
+                    animationDuration: `${r.duration}s`,
+                    '--sway-x': `${r.sway}px`,
+                    '--float-target': `-${r.floatDistPct}cqh`,
+                    '--float-fallback': `-${Math.round((r.floatDistPct / 100) * 360)}px`,
+                  }}
+                  onAnimationEnd={() => removeReaction?.(r.id)}
+                >
+                  {r.emoji}
+                </div>
+              ))}
+            </div>
             {needsGesture && (
               <button
                 type="button"
@@ -507,15 +415,6 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               </button>
               <span>{formatTime(position)}</span>
               <div className="timeline-control">
-                <div className="reaction-heatmap" aria-label="Room reactions on the timeline">
-                  {(state.reactionHeatmap || []).map(item => (
-                    <span
-                      key={item.id}
-                      style={{ left: `${Math.max(0, Math.min(100, item.position / duration * 100))}%` }}
-                      title={`${item.name} reacted ${item.emoji} at ${formatTime(item.position)}`}
-                    >{item.emoji}</span>
-                  ))}
-                </div>
                 <input
                   disabled={!hasRemote || (isSyncOnly && !state.externalStarted)}
                   type="range"
@@ -533,7 +432,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                   style={{ "--track": `${Math.min(position / duration * 100, 100)}%` }}
                 />
               </div>
-              <span>{isSyncOnly ? (provider === "instagram" ? "REEL CLOCK" : "ROOM CLOCK") : Number.isFinite(player?.duration()) ? formatTime(player.duration()) : "--:--"}</span>
+              <span>{isSyncOnly ? "ROOM CLOCK" : Number.isFinite(player?.duration()) ? formatTime(player.duration()) : "--:--"}</span>
               <button className="plain-icon"><Icon name="sound"/></button>
               <button className="plain-icon"><Icon name="expand"/></button>
               {hasRemote && (
@@ -545,6 +444,17 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 >
                   <Icon name="swap" size={12}/>
                   <span>Switch Video</span>
+                </button>
+              )}
+              {!hasRemote && (
+                <button
+                  type="button"
+                  className="transport-resync-btn"
+                  onClick={resyncPlayback}
+                  title="Resync your player to room playback"
+                >
+                  <Icon name="sync" size={12}/>
+                  <span>Resync</span>
                 </button>
               )}
             </div>
@@ -562,8 +472,8 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
           {isSyncOnly && (
             <section className="external-room-controls">
               <div className="external-controls-copy">
-                <span className="eyebrow"><span/>{provider === "instagram" ? "REELS PLAYBACK SYNC" : "SYNC-ONLY READY CHECK"}</span>
-                <p>{provider === "instagram" ? "Everyone gets ready together. When the host fires the 3-2-1 countdown, everyone starts watching together at 0s. If this creator has disabled iframe embedding, tap 'Open on Instagram' and use the shared countdown below." : "Afterglow coordinates the shared room clock, ready check, and social reactions. Open the title in your own account, cue to 00:00, then mark yourself ready."}</p>
+                <span className="eyebrow"><span/>SYNC-ONLY READY CHECK</span>
+                <p>Afterglow coordinates the shared room clock, ready check, and social reactions. Open the title in your own account, cue to 00:00, then mark yourself ready.</p>
                 <div className="external-ready-list">
                   {onlineMembers.map(member => <span key={member.id} className={member.externalReady ? "ready" : ""}>{member.name} · {member.externalReady ? "READY" : "NOT READY"}</span>)}
                   {!onlineMembers.length && <span>Waiting for participants…</span>}
@@ -593,7 +503,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                 <b>{localOffset > 0 ? "+" : ""}{localOffset.toFixed(2)}s</b>
                 <button aria-label="Nudge my clock later" onClick={() => updateLocalOffset(localOffset + 0.25)}>+</button>
                 <button className="offset-reset" onClick={() => updateLocalOffset(0)}>Reset</button>
-                <small>{provider === "instagram" ? "Nudge your local clock if your device video started slightly ahead or behind." : "Only your shared clock changes, not the streaming player."}</small>
+                <small>Only your shared clock changes, not the streaming player.</small>
               </div>
             </section>
           )}
@@ -604,9 +514,16 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
               <small>{telemetry.averageDrift === null ? "Collecting local player drift samples…" : `avg drift ${telemetry.averageDrift.toFixed(2)}s · max ${telemetry.maxDrift.toFixed(2)}s`}</small>
               <small>{telemetry.commands || 0} playback commands · {telemetry.deliverySamples || 0} delivery acknowledgements · {telemetry.deliveryTimeouts || 0} timeouts</small>
             </div>
-            <div className="reaction-dock">
+            <div className="reaction-dock" aria-label="Live reactions">
               {["✨", "♥", "⚡", "👏", "😂"].map(emoji => (
-                <button key={emoji} title={`Signal ${emoji} mood`} onClick={() => send("reaction:send", { emoji })}>{emoji}</button>
+                <button
+                  key={emoji}
+                  type="button"
+                  title={`Signal ${emoji} mood`}
+                  onClick={() => sendReaction ? sendReaction(emoji) : send("reaction:send", { emoji })}
+                >
+                  {emoji}
+                </button>
               ))}
             </div>
           </div>

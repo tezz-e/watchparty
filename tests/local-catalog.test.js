@@ -42,4 +42,50 @@ test("catalog availability can start a sync-only room using an allowlisted servi
   assert.equal(new URL(netflix).hostname, "netflix.com");
   assert.equal(new URL(netflix).pathname, "/");
   assert.equal(externalPlatformUrl("Unknown service"), null);
+  assert.equal(new URL(externalPlatformUrl("Amazon Video")).hostname, "primevideo.com");
+  assert.equal(new URL(externalPlatformUrl("Disney Plus")).hostname, "disneyplus.com");
+  assert.equal(new URL(externalPlatformUrl("Apple TV Store")).hostname, "tv.apple.com");
+});
+
+test("open Blender movies provide playable remote source URLs and licensing attribution", () => {
+  const openIds = [
+    "open-elephants-dream",
+    "open-big-buck-bunny",
+    "open-sintel",
+    "open-tears-of-steel",
+    "open-caminandes",
+    "open-spring",
+    "open-cosmos-laundromat",
+    "open-agent-327",
+  ];
+  for (const id of openIds) {
+    const item = catalogDetails(id);
+    assert.ok(item, `Expected item ${id} in catalog`);
+    assert.ok(item.source, `Expected item ${id} to have remote source URL`);
+    assert.match(item.source, /^https?:\/\/.+\.(mp4|webm)$/i);
+    assert.ok(item.license, `Expected item ${id} to have license`);
+    assert.ok(item.attribution, `Expected item ${id} to have attribution`);
+  }
+});
+
+test("public domain feature films are present with playable URLs, posters, and licenses", () => {
+  const pdTitles = [
+    "Night of the Living Dead",
+    "Charade",
+    "Carnival of Souls",
+    "His Girl Friday",
+    "A Trip to the Moon",
+  ];
+  for (const title of pdTitles) {
+    const matches = searchCatalog(catalog, { query: title });
+    assert.ok(matches.length > 0, `Expected search match for ${title}`);
+    const movie = matches.find(m => m.title.toLowerCase().includes(title.toLowerCase()));
+    assert.ok(movie, `Expected movie ${title} in catalog`);
+    assert.ok(movie.source, `Expected ${title} to have playable source`);
+    assert.match(movie.source, /^https?:\/\/.+\.(mp4|webm)$/i);
+    assert.ok(movie.poster, `Expected ${title} to have poster`);
+    assert.match(movie.poster, /^\/catalog\/posters\//);
+    assert.ok(movie.license, `Expected ${title} to have license`);
+    assert.ok(movie.attribution, `Expected ${title} to have attribution`);
+  }
 });

@@ -46,7 +46,13 @@ export function createYoutubePlayer(container, videoId, {
   loadApi = loadYouTubeIframeApi,
 } = {}) {
   let instance = null;
+  let isReady = false;
   let destroyed = false;
+  let pendingState = {
+    playback: null,
+    seekPosition: null,
+    playbackRate: null,
+  };
 
   if (container?.isConnected === false) {
     onError("container-detached");
@@ -55,6 +61,7 @@ export function createYoutubePlayer(container, videoId, {
       currentTime: () => 0,
       duration: () => 0,
       getTitle: () => "",
+      getPlayerState: () => -1,
       seek: () => {},
       setPlaybackRate: () => {},
       play: () => {},
@@ -71,9 +78,14 @@ export function createYoutubePlayer(container, videoId, {
     }
     instance = new YT.Player(container, {
       videoId,
-      playerVars: { controls: 0, disablekb: 1, enablejsapi: 1, playsinline: 1, origin: typeof window === "undefined" ? "" : window.location.origin },
+      playerVars: { controls: 0, disablekb: 1, enablejsapi: 1, playsinline: 1, autoplay: 0, origin: typeof window === "undefined" ? "" : window.location.origin },
       events: {
         onReady: onReadyEvent => {
+          if (destroyed) return;
+          if (!instance && onReadyEvent?.target) {
+            instance = onReadyEvent.target;
+          }
+          isReady = true;
           const iframe = onReadyEvent.target?.getIframe?.();
           if (iframe) {
             iframe.style.position = "absolute";
@@ -81,11 +93,31 @@ export function createYoutubePlayer(container, videoId, {
             iframe.style.width = "100%";
             iframe.style.height = "100%";
           }
+          if (pendingState.playbackRate !== null) {
+            instance?.setPlaybackRate?.(pendingState.playbackRate);
+          }
+          if (pendingState.seekPosition !== null) {
+            instance?.seekTo?.(pendingState.seekPosition, true);
+          }
+          if (pendingState.playback === "play") {
+            instance?.playVideo?.();
+          } else if (pendingState.playback === "pause") {
+            instance?.pauseVideo?.();
+          }
           onReady(onReadyEvent);
         },
-        onStateChange: onStateChangeEvent => onStateChange(onStateChangeEvent),
-        onError: errorEvent => onError(errorEvent.data),
-        onAutoplayBlocked: onAutoplayBlocked,
+        onStateChange: onStateChangeEvent => {
+          if (destroyed) return;
+          onStateChange(onStateChangeEvent);
+        },
+        onError: errorEvent => {
+          if (destroyed) return;
+          onError(errorEvent.data);
+        },
+        onAutoplayBlocked: () => {
+          if (destroyed) return;
+          onAutoplayBlocked?.();
+        },
       },
     });
   }).catch(error => {
@@ -94,15 +126,45 @@ export function createYoutubePlayer(container, videoId, {
 
   return {
     ready,
-    currentTime: () => instance?.getCurrentTime?.() ?? 0,
+    currentTime: () => {
+      if (instance?.getCurrentTime) {
+        return instance.getCurrentTime() ?? 0;
+      }
+      return pendingState.seekPosition ?? 0;
+    },
     duration: () => instance?.getDuration?.() ?? 0,
     getTitle: () => instance?.getVideoData?.()?.title || "",
-    seek: position => instance?.seekTo?.(position, true),
-    setPlaybackRate: rate => instance?.setPlaybackRate?.(rate),
-    play: () => instance?.playVideo?.(),
-    pause: () => instance?.pauseVideo?.(),
+    getPlayerState: () => {
+      if (destroyed) return -1;
+      return instance?.getPlayerState?.() ?? -1;
+    },
+    seek: position => {
+      if (destroyed) return;
+      pendingState.seekPosition = position;
+      if (!instance?.seekTo) return;
+      return instance.seekTo(position, true);
+    },
+    setPlaybackRate: rate => {
+      if (destroyed) return;
+      pendingState.playbackRate = rate;
+      if (!instance?.setPlaybackRate) return;
+      return instance.setPlaybackRate(rate);
+    },
+    play: () => {
+      if (destroyed) return;
+      pendingState.playback = "play";
+      if (!instance?.playVideo) return;
+      return instance.playVideo();
+    },
+    pause: () => {
+      if (destroyed) return;
+      pendingState.playback = "pause";
+      if (!instance?.pauseVideo) return;
+      return instance.pauseVideo();
+    },
     destroy: () => {
       destroyed = true;
+      pendingState = { playback: null, seekPosition: null, playbackRate: null };
       instance?.destroy?.();
       instance = null;
     },

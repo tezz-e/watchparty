@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useVisualInteractions } from "./hooks/useVisualInteractions.js";
 import { CreateRoom, Identity, Lobby } from "./components/EntryScreens.jsx";
 import Room from "./components/Room.jsx";
+import { parseRoomCode } from "./utils/watchParty.js";
 import "./themes.css";
 
 const themes = new Set(["green", "amber", "blue"]);
@@ -18,8 +19,10 @@ function savedTheme() {
 
 export default function App() {
   const saved = (() => { try { return JSON.parse(sessionStorage.getItem("afterglow-profile")); } catch { return null; } })();
-  const invite = useRef(new URLSearchParams(location.search).get("room"));
+  const rawInvite = new URLSearchParams(location.search).get("room");
+  const invite = useRef(parseRoomCode(rawInvite) || rawInvite);
   const [profile, setProfile] = useState(saved);
+
   const [view, setView] = useState(saved ? "lobby" : "identity");
   const [room, setRoom] = useState(null);
   const [setup, setSetup] = useState(false);

@@ -13,7 +13,8 @@ import { getInviteOrigin } from "./server/inviteOrigin.js";
 import { youtubeVideoId } from "./shared/media.js";
 
 const app = express();
-app.set("trust proxy", true);
+const trustProxyHops = process.env.TRUST_PROXY_HOPS !== undefined ? Number(process.env.TRUST_PROXY_HOPS) : 1;
+app.set("trust proxy", Number.isInteger(trustProxyHops) ? trustProxyHops : 1);
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: true, methods: ["GET", "POST"] } });
 const PORT = process.env.PORT || 3001;
@@ -57,11 +58,50 @@ app.get("/api/invite-origin", (req, res) => {
   }
 });
 
+app.get("/api/rooms/:id", (req, res) => {
+  const roomId = req.params.id;
+  const room = rooms.get(roomId) || rooms.get(roomId?.toLowerCase());
+  if (!room) {
+    res.status(404).json({ error: "Room not found" });
+    return;
+  }
+  res.json({ exists: true, id: room.id, title: room.config?.title });
+});
+
 app.get("/api/library", async (_req, res) => {
   res.json(await listLibraryItems(mediaDirectory));
 });
 
+
+const mediaTitleRateLimits = new Map();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 30;
+
+function checkMediaTitleRateLimit(ip = "unknown") {
+  const clientKey = ip || "unknown";
+  const now = Date.now();
+  const entry = mediaTitleRateLimits.get(clientKey);
+  if (!entry || now - entry.resetAt > RATE_LIMIT_WINDOW_MS) {
+    mediaTitleRateLimits.set(clientKey, { count: 1, resetAt: now });
+    if (mediaTitleRateLimits.size > 5_000) {
+      for (const [key, val] of mediaTitleRateLimits.entries()) {
+        if (now - val.resetAt > RATE_LIMIT_WINDOW_MS) mediaTitleRateLimits.delete(key);
+      }
+    }
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  entry.count += 1;
+  return true;
+}
+
 app.get("/api/media-title", async (req, res) => {
+  if (!checkMediaTitleRateLimit(req.ip)) {
+    res.status(429).json({ error: "Too many requests. Please try again later." });
+    return;
+  }
   const targetUrl = req.query.url;
   if (!targetUrl || typeof targetUrl !== "string") {
     res.status(400).json({ error: "A valid url query parameter is required." });
@@ -74,7 +114,7 @@ app.get("/api/media-title", async (req, res) => {
   }
   try {
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${ytId}`)}&format=json`;
-    const response = await fetch(oembedUrl);
+    const response = await fetch(oembedUrl, { signal: AbortSignal.timeout(5_000) });
     if (!response.ok) {
       res.status(response.status).json({ error: "Failed to fetch oEmbed metadata." });
       return;

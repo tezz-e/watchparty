@@ -11,6 +11,8 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
   const [query, setQuery] = useState("");
   const [isFetchingTitle, setIsFetchingTitle] = useState(false);
   const userEditedTitle = useRef(false);
+  const titleEditCountRef = useRef(0);
+  const currentSourceRef = useRef("");
 
   if (!isOpen) return null;
 
@@ -23,12 +25,16 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
   const handleSourceChange = async e => {
     const nextSource = e.target.value;
     setSource(nextSource);
+    currentSourceRef.current = nextSource;
     if (youtubeVideoId(nextSource)) {
       const defaultTitles = new Set(["Friday, but make it quiet", "Blender Nature Short", "Blender Foundation - Big Buck Bunny 4K", "YouTube Video"]);
       if (!userEditedTitle.current || defaultTitles.has(title) || !title.trim()) {
+        const initialTitleEdits = titleEditCountRef.current;
         setIsFetchingTitle(true);
         const resolved = await fetchMediaTitle(nextSource);
         setIsFetchingTitle(false);
+        if (currentSourceRef.current !== nextSource) return;
+        if (titleEditCountRef.current !== initialTitleEdits) return;
         if (resolved) setTitle(resolved);
       }
     }
@@ -41,7 +47,7 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
     if (!finalTitle && provider === "youtube") {
       finalTitle = (await fetchMediaTitle(source)) || "YouTube Video";
     }
-    finalTitle = finalTitle || (provider === "youtube" ? "YouTube Video" : provider === "instagram" ? "Instagram Reel" : platform?.name ? `${platform.name} Watch Party` : "Shared Video");
+    finalTitle = finalTitle || (provider === "youtube" ? "YouTube Video" : platform?.name ? `${platform.name} Watch Party` : "Shared Video");
     onUpdate({ title: finalTitle, source: source.trim() });
     onClose();
   };
@@ -93,7 +99,7 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
                 autoFocus
                 value={source}
                 onChange={handleSourceChange}
-                placeholder="Paste YouTube, Instagram Reel, direct MP4/HLS, or streaming link"
+                placeholder="Paste YouTube, direct MP4/HLS, or streaming link"
                 aria-invalid={Boolean(source) && !validSource}
               />
             </label>
@@ -104,6 +110,7 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
                 value={title}
                 onChange={e => {
                   userEditedTitle.current = true;
+                  titleEditCountRef.current += 1;
                   setTitle(e.target.value);
                 }}
                 placeholder="e.g. My Favorite Movie or Clip"
@@ -126,17 +133,8 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
               <button
                 type="button"
                 onClick={() => {
-                  setTitle("Instagram Reel");
-                  setSource("https://www.instagram.com/reel/BsOGulcndj-/");
-                }}
-              >
-                Instagram Reel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   setTitle("Big Buck Bunny");
-                  setSource("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+                  setSource("https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4");
                 }}
               >
                 Direct MP4
@@ -144,7 +142,7 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
             </div>
 
             {source && !validSource && (
-              <p className="source-error">Use a valid YouTube link, Instagram Reel link, direct .mp4/.webm/.m3u8, or streaming link.</p>
+              <p className="source-error">Use a valid YouTube link, direct .mp4/.webm/.m3u8, or streaming link.</p>
             )}
             {mixedContent && (
               <p className="source-error">This HTTPS page cannot play insecure HTTP video. Use an HTTPS media URL.</p>
@@ -154,12 +152,6 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
               <div className="provider-detected-badge">
                 <Icon name="play" size={13} />
                 <span>Detected: YouTube Video · Embedded player with full room synchronization</span>
-              </div>
-            )}
-            {provider === "instagram" && (
-              <div className="provider-detected-badge">
-                <Icon name="device" size={13} />
-                <span>Detected: Instagram Reel · Reels player with synchronized countdown and clock</span>
               </div>
             )}
             {provider === "external" && (

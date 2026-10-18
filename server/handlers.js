@@ -19,10 +19,7 @@ import { mediaProvider } from "../shared/media.js";
 import { canPublishScreen, liveKitService } from "./livekit.js";
 
 const moodByEmoji = { "✨": "uplifting", "♥": "cozy", "⚡": "energetic", "👏": "thrilling", "😂": "playful" };
-const isSyncOnly = source => {
-  const provider = mediaProvider(source);
-  return provider === "external" || provider === "instagram";
-};
+const isSyncOnly = source => mediaProvider(source) === "external";
 
 export function registerSocketHandlers(io) {
   const publishPresence = room => io.to(room.id).emit("room:presence", memberList(room));
@@ -138,6 +135,11 @@ export function registerSocketHandlers(io) {
       if (!Number.isFinite(position) || position < 0 || position > 86_400) return reject(socket, "invalid-position", "That playback position is invalid.");
       if (heartbeat) {
         if (Number.isFinite(version) && version < room.version) {
+          const lastStaleSnapshot = socket.data.lastStaleSnapshotAt || 0;
+          if (now() - lastStaleSnapshot >= 5_000) {
+            socket.data.lastStaleSnapshotAt = now();
+            socket.emit("room:state", roomSnapshot(room));
+          }
           return;
         }
       }
@@ -308,31 +310,33 @@ export function registerSocketHandlers(io) {
       const canControl = room.config.control === "shared" || isHost(room, socket);
       if (!canControl) return reject(socket, "host-controls", "The host has the remote.");
       if (typeof source !== "string" || !validMediaUrl(source)) return reject(socket, "invalid-source", "Provide a supported media URL.");
-      const isReelScroll = mediaProvider(room.config.source) === "instagram" &&
-                           mediaProvider(source) === "instagram" &&
-                           Boolean(room.externalStarted);
 
       room.config = { ...room.config, title: typeof title === "string" && title.trim() ? title.trim() : "Shared Video", source };
       room.position = 0;
       room.activePlaylistItemId = null;
       room.reactionHeatmap = [];
       room.reactionHighlights = null;
-
-      if (isReelScroll) {
-        room.externalStarted = true;
-        room.playing = true;
-        room.externalCountdown = null;
-        room.updatedAt = now();
-      } else {
-        room.playing = false;
-        room.externalStarted = false;
-        room.externalCountdown = null;
-        for (const member of room.members.values()) member.externalReady = false;
-        room.updatedAt = now();
-      }
+      room.playing = false;
+      room.externalStarted = false;
+      room.externalCountdown = null;
+      for (const member of room.members.values()) member.externalReady = false;
+      room.updatedAt = now();
       room.version += 1;
       io.to(room.id).emit("room:config", room.config);
       publishPresence(room);
+      publishState(room);
+    });
+
+    socket.on("room:set-title", ({ title, source } = {}) => {
+      const room = roomFor(socket);
+      if (!room) return;
+      if (source !== room.config.source) return;
+      const canControl = room.config.control === "shared" || isHost(room, socket);
+      if (!canControl) return reject(socket, "host-controls", "The host has the remote.");
+      const nextTitle = cleanText(title, "", 80);
+      if (!nextTitle) return;
+      room.config = { ...room.config, title: nextTitle };
+      io.to(room.id).emit("room:config", room.config);
       publishState(room);
     });
 
@@ -514,19 +518,30 @@ export function registerSocketHandlers(io) {
       io.to(room.id).emit("chat:message", payload);
     });
 
-    socket.on("reaction:send", ({ emoji } = {}) => {
+    socket.on("reaction:send", ({ emoji, id } = {}) => {
       const room = roomFor(socket);
       const member = room?.members.get(socket.data.memberId);
       if (!room || !member || !moodByEmoji[emoji]) return;
+
+      const currentNow = now();
+      if (!socket.data.reactionTimestamps) {
+        socket.data.reactionTimestamps = [];
+      }
+      socket.data.reactionTimestamps = socket.data.reactionTimestamps.filter(t => currentNow - t < 1000);
+      if (socket.data.reactionTimestamps.length >= 5) {
+        return;
+      }
+      socket.data.reactionTimestamps.push(currentNow);
+
       room.moods[socket.data.memberId] = moodByEmoji[emoji];
       const reaction = {
-        id: `${now()}-${socket.id}`,
+        id: (typeof id === "string" && id.trim()) ? id.trim() : `${currentNow}-${socket.id}-${Math.random().toString(36).slice(2, 6)}`,
         emoji,
         mood: moodByEmoji[emoji],
         memberId: member.id,
         name: member.name,
         position: currentPosition(room),
-        createdAt: now(),
+        createdAt: currentNow,
       };
       room.reactionHeatmap.push(reaction);
       room.reactionHeatmap = room.reactionHeatmap.slice(-250);

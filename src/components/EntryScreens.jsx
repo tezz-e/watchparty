@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl, youtubeVideoId } from "../data/catalog.js";
 import { catalog, catalogAvailability, catalogCategories, catalogGenres, catalogSnapshot, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
-import { roomId } from "../utils/watchParty.js";
+import { parseRoomCode, roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
 import { fetchMediaTitle } from "../utils/mediaTitle.js";
 import { Avatar, Icon, SoftField, ThemeSelect, Wordmark } from "./Primitives.jsx";
@@ -35,6 +35,45 @@ export function Identity({ onContinue, theme, onThemeChange }) {
 export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange, recentRoom }) {
   const [join, setJoin] = useState(false);
   const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  const handleJoinSubmit = async event => {
+    event.preventDefault();
+    const raw = code;
+    if (!raw.trim()) return;
+
+    const parsedId = parseRoomCode(raw);
+    if (!parsedId) {
+      setError("Invalid room code format. Enter a 6-character code, room-xxxxxx, or invite link.");
+      return;
+    }
+
+    setChecking(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${serverUrl}/api/rooms/${encodeURIComponent(parsedId)}`);
+      if (response.status === 404) {
+        setError("That room does not exist or has expired.");
+        return;
+      }
+      if (!response.ok) {
+        setError("That room does not exist or has expired.");
+        return;
+      }
+      const data = await response.json();
+      if (data?.exists) {
+        onJoin(parsedId);
+      } else {
+        setError("That room does not exist or has expired.");
+      }
+    } catch {
+      setError("That room does not exist or has expired.");
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <SoftField className="lobby-page" theme={theme}>
@@ -46,7 +85,7 @@ export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange, recentR
           <p>Create a room with an open playable URL, or join an invitation someone has already shared.</p>
           <div className="lobby-actions">
             <button className="primary-action" onClick={onCreate}><Icon name="plus"/> Start a room</button>
-            <button className="secondary-action" onClick={() => setJoin(!join)}><Icon name="link"/> Join with a code</button>
+            <button className="secondary-action" onClick={() => { setJoin(!join); setError(""); }}><Icon name="link"/> Join with a code</button>
             {recentRoom?.id && (
               <button
                 type="button"
@@ -59,7 +98,40 @@ export function Lobby({ profile, onCreate, onJoin, theme, onThemeChange, recentR
               </button>
             )}
           </div>
-          {join && <form className="join-tray" onSubmit={event => { event.preventDefault(); if (code.trim()) onJoin(code.trim().toLowerCase()); }}><input autoFocus value={code} onChange={event => setCode(event.target.value.replace(/\s/g, ""))} placeholder="room-code"/><button>Join <Icon name="arrow" size={16}/></button></form>}
+          {join && (
+            <div className="join-container" style={{ width: "min(390px, 100%)", marginTop: "14px" }}>
+              <form className="join-tray" onSubmit={handleJoinSubmit} style={{ marginTop: 0 }}>
+                <input
+                  autoFocus
+                  value={code}
+                  onChange={event => {
+                    setCode(event.target.value);
+                    if (error) setError("");
+                  }}
+                  placeholder="room-xxxxxx, code, or invite URL"
+                  disabled={checking}
+                />
+                <button type="submit" disabled={checking || !code.trim()}>
+                  {checking ? "Checking..." : <>Join <Icon name="arrow" size={16}/></>}
+                </button>
+              </form>
+              {error && (
+                <p
+                  className="join-error"
+                  role="alert"
+                  style={{
+                    color: "#ff7b7b",
+                    fontSize: "11px",
+                    fontFamily: "'DM Mono', monospace",
+                    marginTop: "8px",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  {error}
+                </p>
+              )}
+            </div>
+          )}
         </section>
         <section className="lobby-instrument">
           <div className="instrument-top"><span>HOW A ROOM WORKS</span><b>01: SERVER CLOCK</b></div>
@@ -105,17 +177,36 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
   const [sort, setSort] = useState("title");
   const [syncService, setSyncService] = useState(syncServices[0]);
   const localFilenames = new Set(localItems.map(item => decodeURIComponent(item.source.split("/").pop())));
-  const catalogItems = catalog.map(item => ({
-    ...item,
-    available: localFilenames.has(item.filename),
-    source: `${serverUrl}/media/${encodeURIComponent(item.filename)}`,
-    availability: catalogAvailability(item, localFilenames),
-    note: `${item.year}${item.rating === null ? "" : ` · ${item.rating.toFixed(1)}/10`} · ${item.genres.join(", ")}`,
-  }));
+  const catalogItems = catalog.map(item => {
+    const hasLocal = Boolean(item.filename && localFilenames.has(item.filename));
+    const hasRemote = Boolean(item.source);
+    const isAvailable = hasLocal || hasRemote;
+    const effectiveSource = hasLocal
+      ? `${serverUrl}/media/${encodeURIComponent(item.filename)}`
+      : (item.source || "");
+
+    let effectiveAvailability;
+    if (hasLocal) {
+      effectiveAvailability = ["Available in this room's local library"];
+    } else if (hasRemote) {
+      effectiveAvailability = item.availability?.length ? item.availability : ["Direct public stream"];
+    } else {
+      effectiveAvailability = catalogAvailability(item, localFilenames);
+    }
+
+    return {
+      ...item,
+      available: isAvailable,
+      source: effectiveSource,
+      hasPlayableSource: isAvailable,
+      availability: effectiveAvailability,
+      note: `${item.year}${item.rating === null ? "" : ` · ${item.rating.toFixed(1)}/10`} · ${(item.genres || []).join(", ")}`,
+    };
+  });
   const catalogFileNames = new Set(catalog.map(item => item.filename));
   const extraLibraryItems = localItems
     .filter(item => !catalogFileNames.has(decodeURIComponent(item.source.split("/").pop())))
-    .map(item => ({ ...item, available: true, availability: ["Available in this room's local library"] }));
+    .map(item => ({ ...item, available: true, hasPlayableSource: true, availability: ["Available in this room's local library"] }));
   const availableItems = [...catalogItems, ...extraLibraryItems];
   const categories = ["All", ...new Set([...catalogCategories(), ...extraLibraryItems.map(item => item.category)])];
   const genres = ["All", ...new Set([...catalogGenres(), ...extraLibraryItems.flatMap(item => item.genres || [])])];
@@ -133,13 +224,123 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
       <div className="catalog-grid">
         {picks.map(item => {
           const syncLink = externalPlatformUrl(syncService);
+          const hasPlayableSource = item.available;
+          const hasTrailer = Boolean(item.trailerKey);
+          const trailerSource = hasTrailer ? `https://www.youtube.com/watch?v=${item.trailerKey}` : "";
+
+          const availableSyncOptions = (item.availability || [])
+            .map(name => ({ name, url: externalPlatformUrl(name) }))
+            .filter(s => Boolean(s.url));
+          const syncOptions = availableSyncOptions.length > 0
+            ? availableSyncOptions
+            : (syncLink ? [{ name: syncService, url: syncLink }] : []);
+
+          const handleCardClick = () => {
+            if (hasPlayableSource) {
+              onSelect(item);
+            } else if (hasTrailer) {
+              onSelect({
+                ...item,
+                title: `${item.title} (Trailer)`,
+                source: trailerSource,
+                category: item.category,
+                duration: "--:--",
+              });
+            }
+          };
+
           return (
             <article className="catalog-entry" key={item.id}>
-              <button type="button" className={`catalog-card ${item.tone}`} onClick={() => onSelect(item)} disabled={!item.available} aria-label={item.available ? `${action}: ${item.title}` : `${item.title}: add the licensed file to media`}>
-                <span className="catalog-art"><img src={item.poster || "/catalog/posters/big-buck-bunny.svg"} alt="" loading="lazy"/><span>{item.category}</span><b>{item.year || item.duration}</b></span>
-                <span className="catalog-info"><small>{item.note}</small><strong>{item.title}</strong><span className="catalog-overview">{item.overview}</span><span className={item.available ? "catalog-availability available" : "catalog-availability"}>{item.availability?.join(" · ")}</span><span className="catalog-select">{item.available ? <><Icon name="plus" size={14}/>{action}</> : "Licensed file not installed"}</span></span>
+              <button
+                type="button"
+                className={`catalog-card ${item.tone}`}
+                onClick={handleCardClick}
+                disabled={!hasPlayableSource && !hasTrailer}
+                aria-label={
+                  hasPlayableSource
+                    ? `${action}: ${item.title}`
+                    : hasTrailer
+                      ? `Watch trailer together: ${item.title}`
+                      : `${item.title}: Full movie requires subscription`
+                }
+              >
+                <span className="catalog-art">
+                  <img src={item.poster || "/catalog/posters/big-buck-bunny.svg"} alt="" loading="lazy"/>
+                  <span>{item.category}</span>
+                  <b>{item.year || item.duration}</b>
+                </span>
+                <span className="catalog-info">
+                  <small>{item.note}</small>
+                  <strong>{item.title}</strong>
+                  <span className="catalog-overview">{item.overview}</span>
+                  <span className={hasPlayableSource ? "catalog-availability available" : "catalog-availability"}>
+                    {hasPlayableSource
+                      ? item.availability?.join(" · ")
+                      : `Streaming on: ${(item.availability || []).join(", ") || "Subscription services"}`}
+                  </span>
+                  {!hasPlayableSource && (
+                    <span
+                      className="catalog-subscription-notice"
+                      style={{
+                        display: "block",
+                        color: "var(--theme-highlight, #d7ff9a)",
+                        fontSize: "8.5px",
+                        fontFamily: "'DM Mono', monospace",
+                        lineHeight: "1.3",
+                        margin: "2px 0 6px"
+                      }}
+                    >
+                      Full movie plays on your own subscription, while the trailer can be watched together right here.
+                    </span>
+                  )}
+                  {item.attribution && (
+                    <small
+                      className="catalog-entry-attribution"
+                      style={{
+                        display: "block",
+                        color: "var(--theme-dim, #7f8a7c)",
+                        fontSize: "7.5px",
+                        fontFamily: "'DM Mono', monospace",
+                        margin: "2px 0 4px",
+                        opacity: 0.8
+                      }}
+                    >
+                      {item.attribution} {item.license ? `· ${item.license}` : ""}
+                    </small>
+                  )}
+                  <span className="catalog-select">
+                    {hasPlayableSource ? (
+                      <><Icon name="plus" size={14}/>{action}</>
+                    ) : hasTrailer ? (
+                      <><Icon name="play" size={14}/>Watch trailer together</>
+                    ) : (
+                      "Subscription required · No trailer"
+                    )}
+                  </span>
+                </span>
               </button>
-              {onSyncOnly && syncLink && <div className="catalog-service-actions"><button type="button" onClick={() => onSyncOnly(item, { name: syncService })}><Icon name="external" size={12}/>Start sync-only with {syncService}</button></div>}
+              {onSyncOnly && (
+                <div className="catalog-service-actions">
+                  {!hasPlayableSource && syncOptions.length > 0 ? (
+                    syncOptions.slice(0, 2).map(service => (
+                      <button
+                        type="button"
+                        key={service.name}
+                        onClick={() => onSyncOnly(item, service)}
+                        title={`Start sync-only room with countdown for ${service.name} (plays on your own subscription)`}
+                      >
+                        <Icon name="external" size={12}/>Sync-only room (countdown) · {service.name}
+                      </button>
+                    ))
+                  ) : (
+                    syncLink && (
+                      <button type="button" onClick={() => onSyncOnly(item, { name: syncService })}>
+                        <Icon name="external" size={12}/>Start sync-only with {syncService}
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
             </article>
           );
         })}
@@ -164,22 +365,28 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
   const [category, setCategory] = useState("All");
   const [isFetchingTitle, setIsFetchingTitle] = useState(false);
   const userEditedTitle = useRef(false);
+  const titleEditCountRef = useRef(0);
+  const currentSourceRef = useRef("");
   const validSource = validMediaUrl(source);
   const provider = mediaProvider(source);
   const platform = streamingPlatform(source);
   const mixedContent = isMixedContent(source, window.location.protocol);
   const canCreate = validSource && !mixedContent && Boolean(title.trim());
-  const providerLabel = provider === "youtube" ? "YOUTUBE VIDEO URL" : provider === "hls" ? "HLS STREAM URL" : provider === "instagram" ? "INSTAGRAM REEL / POST LINK" : provider === "external" ? `${platform?.name.toUpperCase()} LINK` : "VIDEO URL";
+  const providerLabel = provider === "youtube" ? "YOUTUBE VIDEO URL" : provider === "hls" ? "HLS STREAM URL" : provider === "external" ? `${platform?.name.toUpperCase()} LINK` : "VIDEO URL";
 
   const handleSourceChange = async event => {
     const nextSource = event.target.value;
     setSource(nextSource);
+    currentSourceRef.current = nextSource;
     if (youtubeVideoId(nextSource)) {
       const defaultTitles = new Set(["Friday, but make it quiet", "Blender Nature Short", "Blender Foundation - Big Buck Bunny 4K", "YouTube Video"]);
       if (!userEditedTitle.current || defaultTitles.has(title) || !title.trim()) {
+        const initialTitleEdits = titleEditCountRef.current;
         setIsFetchingTitle(true);
         const resolved = await fetchMediaTitle(nextSource);
         setIsFetchingTitle(false);
+        if (currentSourceRef.current !== nextSource) return;
+        if (titleEditCountRef.current !== initialTitleEdits) return;
         if (resolved) setTitle(resolved);
       }
     }
@@ -190,29 +397,28 @@ export function CreateRoom({ onClose, onEnter, theme = "green" }) {
       <form className="setup-modal setup-modal-wide" onSubmit={event => { event.preventDefault(); if (canCreate) onEnter({ id: roomId(), title, source, control, kind: provider, create: true }); }}>
         <button type="button" className="modal-close" onClick={onClose}><Icon name="close"/></button>
         <div className="setup-head"><span className="eyebrow"><span/>NEW SESSION</span><h2>Pick the signal first.</h2><p>Each viewer plays the same source locally. Afterglow synchronizes timing and room activity, never the video file.</p></div>
-        <label className="field-label">ROOM NAME<input value={title} onChange={event => { userEditedTitle.current = true; setTitle(event.target.value); }} maxLength="56"/></label>
+        <label className="field-label">ROOM NAME<input value={title} onChange={event => { userEditedTitle.current = true; titleEditCountRef.current += 1; setTitle(event.target.value); }} maxLength="56"/></label>
         <label className="field-label">
           <span>{providerLabel}</span>
           {isFetchingTitle && <small style={{ float: "right", color: "var(--theme-highlight, #d7ff9a)", font: "9px DM Mono" }}>Fetching video title…</small>}
-          <input value={source} onChange={handleSourceChange} placeholder="Paste a video, YouTube, Instagram Reel, or streaming URL" aria-invalid={Boolean(source) && !validSource}/>
+          <input value={source} onChange={handleSourceChange} placeholder="Paste a video, YouTube, or streaming URL" aria-invalid={Boolean(source) && !validSource}/>
         </label>
         <div className="quick-source-pills">
           <span>Quick try:</span>
-          <button type="button" onClick={() => { setTitle("Instagram Reel Session"); setSource("https://www.instagram.com/reel/BsOGulcndj-/"); userEditedTitle.current = false; }}>
-            📱 Instagram Reel
-          </button>
           <button type="button" onClick={() => { setTitle("Blender Foundation - Big Buck Bunny 4K"); setSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ"); userEditedTitle.current = false; }}>
             ▶️ YouTube Video
           </button>
+          <button type="button" onClick={() => { setTitle("Big Buck Bunny"); setSource("https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4"); userEditedTitle.current = false; }}>
+            🎬 Direct MP4
+          </button>
         </div>
-        {source && !validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, Instagram Reel link, or a recognized streaming-service link.</p>}
+        {source && !validSource && <p className="source-error">Use a direct HTTP(S) .mp4/.webm/.m3u8 URL, a supported YouTube link, or a recognized streaming-service link.</p>}
         {mixedContent && <p className="source-error">This HTTPS page cannot play an insecure HTTP stream. Use an HTTPS media URL.</p>}
         {provider === "youtube" && <p className="source-note">YouTube’s official embed player will be used. Some videos cannot be embedded by their owner.</p>}
-        {provider === "instagram" && <p className="source-note">Instagram Reel embedded player with synced countdown, shared room clock, live emoji reactions, and chat.</p>}
         {provider === "hls" && !mixedContent && <p className="source-note">HLS plays through the browser’s native player or hls.js. The media host must allow cross-origin requests from this site.</p>}
         {provider === "external" && <p className="source-note">This is a sync-only room for {platform.name}. Everyone opens the link in their own account; Afterglow cannot control that site’s player.</p>}
         <fieldset><legend>WHO HOLDS THE REMOTE?</legend><div className="control-choices"><button type="button" className={control === "host" ? "chosen" : ""} onClick={() => setControl("host")}><Icon name="user"/><b>Host control</b><span>One person keeps the pace.</span></button><button type="button" className={control === "shared" ? "chosen" : ""} onClick={() => setControl("shared")}><Icon name="globe"/><b>Shared control</b><span>Everyone can steer.</span></button></div></fieldset>
-        <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : provider === "instagram" ? "Create Reels room" : "Create the room"} <Icon name="arrow"/></button>
+        <button className="primary-action" disabled={!canCreate}>{provider === "external" ? "Create sync-only room" : "Create the room"} <Icon name="arrow"/></button>
         <div className="catalog-divider"><span>OR CHOOSE FROM OFFLINE CATALOG</span></div>
         <Discovery
           query={query}
@@ -240,8 +446,8 @@ export function Queue({ playlist, isHost, selfId, onPlay, onRemove, onAdd, onVot
   const { localItems } = useLocalLibrary();
   const availableFiles = new Set(localItems.map(item => decodeURIComponent(item.source.split("/").pop())));
   const recommendations = mood?.current
-    ? catalog.filter(item => item.moods.includes(mood.current) && availableFiles.has(item.filename))
-      .map(item => ({ ...item, source: `${serverUrl}/media/${encodeURIComponent(item.filename)}` }))
+    ? catalog.filter(item => item.moods?.includes(mood.current) && (availableFiles.has(item.filename) || item.source))
+      .map(item => ({ ...item, source: availableFiles.has(item.filename) ? `${serverUrl}/media/${encodeURIComponent(item.filename)}` : item.source }))
       .filter(item => !playlist.some(queued => queued.source === item.source))
       .slice(0, 2)
     : [];
@@ -251,12 +457,12 @@ export function Queue({ playlist, isHost, selfId, onPlay, onRemove, onAdd, onVot
     const cleanSource = customLink.trim();
     if (!cleanSource || !validMediaUrl(cleanSource)) return;
     const provider = mediaProvider(cleanSource);
-    const title = provider === "instagram" ? "Instagram Reel" : provider === "youtube" ? "YouTube Clip" : "Online Video";
+    const title = provider === "youtube" ? "YouTube Clip" : "Online Video";
     onAdd({
       title,
       source: cleanSource,
-      category: provider === "instagram" ? "Reels" : "Web",
-      duration: provider === "instagram" ? "Reel" : "--:--",
+      category: "Web",
+      duration: "--:--",
     });
     setCustomLink("");
   };
@@ -268,7 +474,7 @@ export function Queue({ playlist, isHost, selfId, onPlay, onRemove, onAdd, onVot
         <input
           value={customLink}
           onChange={e => setCustomLink(e.target.value)}
-          placeholder="Paste Instagram Reel or YouTube URL..."
+          placeholder="Paste YouTube or video URL..."
           aria-label="Queue media URL"
         />
         <button type="submit" disabled={!customLink.trim() || !validMediaUrl(customLink.trim())}>

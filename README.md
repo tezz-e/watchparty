@@ -13,7 +13,7 @@
 
 **afterglow** is a real-time playback synchronization engine and watch party interface built for multi-network viewing across modern web browsers. Built on an authoritative WebSocket server and client-side drift compensation algorithms, afterglow maintains frame-consistent playback across heterogeneous devices without browser extensions, accounts, or native installations.
 
-The platform coordinates shared rooms for direct video streams (MP4/WebM byte-ranges), adaptive HLS, YouTube, and mobile-optimized Instagram Reels sessions, alongside an honest sync-only countdown protocol for commercial streaming providers.
+The platform coordinates shared rooms for direct video streams (MP4/WebM byte-ranges), adaptive HLS, YouTube, and the preloaded movie library, alongside an honest sync-only countdown protocol for commercial streaming providers.
 
 ---
 
@@ -28,7 +28,7 @@ The service is deployed and publicly accessible:
 
 ### Walkthrough
 1. **Set Presence**: Choose a display name and signal color on the identity screen.
-2. **Create Room**: Select **Start a room** and input a media URL, or pick from the sample presets (YouTube, Instagram Reel, or open-source film).
+2. **Create Room**: Select **Start a room** and input a media URL, or pick from the sample presets (YouTube, open movie catalog, or direct MP4/HLS).
 3. **Invite Participants**: Use the **Invite** button in the navigation bar to copy the unique room link.
 4. **Synchronized Playback**: Play, pause, seek, volume adjustments, timeline reactions, and queue voting propagate authoritatively to all room members.
 
@@ -41,7 +41,7 @@ The interface uses responsive layout adapters and custom media viewports tailore
 <table align="center" width="100%">
   <tr>
     <th width="65%" align="center"><b>Desktop Cinema Control Room</b></th>
-    <th width="35%" align="center"><b>Mobile Instagram Reels Chassis</b></th>
+    <th width="35%" align="center"><b>Mobile Compact Watch Party</b></th>
   </tr>
   <tr>
     <td align="center" valign="top">
@@ -49,8 +49,8 @@ The interface uses responsive layout adapters and custom media viewports tailore
       <p align="left"><em>Widescreen cinema mode featuring real-time route latency telemetry in the status pill, reaction heatmap seekbar, live chat drawer, and tactile playback transport.</em></p>
     </td>
     <td align="center" valign="top">
-      <img src="./assets/mobile-reel.png" alt="Mobile Instagram Reels Watch Party" width="100%" />
-      <p align="left"><em>Vertical 9:16 mobile chassis with synchronized 3-2-1 countdown sequence, live floating emoji reaction stream, and native Instagram launch actions.</em></p>
+      <img src="./assets/mobile-reel.png" alt="Mobile Watch Party" width="100%" />
+      <p align="left"><em>Vertical mobile layout with synchronized playback, live floating emoji reaction stream, and touch-optimized controls.</em></p>
     </td>
   </tr>
   <tr>
@@ -78,7 +78,6 @@ Room timing and media delivery are decoupled. Each viewer's browser renders medi
 | Provider | Mechanism | Synchronization Model |
 | :--- | :--- | :--- |
 | **YouTube** | Official YouTube IFrame Player API | Bidirectional sync for play, pause, buffer, and seek states with autoplay policy recovery. |
-| **Instagram Reels** | Dedicated 9:16 Embedded Chassis | Coordinated 3-2-1 host countdown, live floating reactions, and personal micro-nudge clock trim. |
 | **Direct MP4 / WebM** | HTML5 `<video>` with Byte-Range Requests | Client-side playback rate adjustments ($0.95\times$–$1.05\times$) and discrete seeking against the server clock. |
 | **Adaptive Streaming (HLS)** | `hls.js` with Native Fallback | Multi-bitrate VOD and live streams with CORS checking and network error recovery. |
 | **Commercial Streaming Services** | Sync-Only Protocol Engine | For Netflix, Disney+, and Prime Video: synchronizes a shared countdown, clock, and readiness check without capturing DRM-protected frames. |
@@ -92,7 +91,7 @@ Room timing and media delivery are decoupled. Each viewer's browser renders medi
 flowchart TD
     subgraph Client ["Client Browser (React 19 + Vite)"]
         UI["Tactile Interface &amp; Living Material Shaders"]
-        Adapters["Media Player Adapters (YouTube / HTML5 / HLS / Instagram)"]
+        Adapters["Media Player Adapters (YouTube / HTML5 / HLS)"]
         ClockEngine["Sync Engine: RTT Filter &amp; 3-Band Drift Correction"]
     end
 
@@ -105,7 +104,6 @@ flowchart TD
 
     subgraph MediaSources ["Media Delivery (Decoupled)"]
         YT[YouTube CDN]
-        IG[Instagram CDN]
         Local[Express Byte-Range Media]
     end
 
@@ -198,7 +196,6 @@ Complete test coverage spans clock synchronization, provider parsing, and room s
 ✔ configured public origin takes precedence and ignores URL paths
 ✔ localhost origins are rewritten to an active LAN IPv4 while retaining the port
 ✔ YouTube URL detection supports watch, short, shorts, embed, and live links
-✔ Instagram Reel URL detection supports reel, reels, p, and tv links
 ✔ URL auto-detection selects HLS and recognized streaming services only
 ✔ clock offset estimation accounts for client and server processing time
 ✔ playback correction classifies the three drift zones and boundaries
@@ -244,6 +241,50 @@ afterglow/
 ├── render.yaml              # Cloud deployment blueprint
 └── server.js                # Express + Socket.IO production entrypoint
 ```
+
+---
+
+## Why Couldn't You Play Full Movies? (And What We Provide)
+
+If you explored the discovery catalog on earlier builds of Afterglow, you might have noticed an awkward limitation: **only trailers were playable, and every movie card was greyed out**.
+
+### The Root Cause: Why it Didn't Work
+
+There were two distinct reasons behind this:
+
+1. **Commercial Movies & the DRM Reality (TMDB Entries)**:
+   The catalog includes 32 popular titles populated from The Movie Database (TMDB) and JustWatch. However, TMDB is strictly an informational metadata catalog—it does not distribute video files. Modern commercial movies (*Spider-Man*, *Avengers*, etc.) are protected by Widevine/FairPlay DRM and live locked behind personal subscription accounts (Netflix, Disney+, Prime Video). A browser app cannot legally or technically grab full streams of commercial films out of thin air. In the original UI, these entries offered no playable full video, leaving users puzzled why they were in the catalog at all.
+
+2. **The "Missing Media" Dilemma (Blender Open Movies)**:
+   The catalog also includes 8 wonderful Creative Commons open movies made by the Blender Foundation (*Big Buck Bunny*, *Sintel*, *Tears of Steel*, etc.). These are legally free to stream and share anywhere in the world! However, the original code looked *only* for local video files stored on disk inside the server's `media/` folder. Because multi-gigabyte video files are gitignored and excluded from lightweight Docker/cloud deployments, that folder was empty on live servers. As a result, every single open movie displayed `"Licensed file not installed"` and sat disabled.
+
+The net effect: users opened a watch-party app and discovered that nothing but YouTube trailers could actually be watched together.
+
+---
+
+### What We Are Providing Instead (In Simple Human Terms)
+
+We restructured the catalog and player to be completely transparent, fully functional out-of-the-box, and deeply respectful of both open-source culture and commercial realities:
+
+* **Instant, Zero-Install Streaming for Open Movies**:
+  We added verified, high-speed remote streaming URLs (`source`) for all 8 open Blender films directly in the catalog. These URLs (sourced from the Blender Foundation, Wikimedia Commons, and the Internet Archive) support HTTP byte-range requests (`206 Partial Content`), allowing immediate playback and fine-grained seek scrub synchronization without downloading any files to the server. If a host does choose to place local files in `media/`, Afterglow automatically prefers the local high-speed copy.
+
+* **Full-Length Public Domain Feature Films**:
+  To ensure friend groups have real, full-length movies they can watch together from start to finish without needing any external accounts, we added a curated set of iconic public-domain films hosted on the Internet Archive:
+  * *Night of the Living Dead* (1968) — George A. Romero's groundbreaking horror masterpiece.
+  * *Charade* (1963) — Stanley Donen's witty romantic thriller starring Cary Grant and Audrey Hepburn.
+  * *Carnival of Souls* (1962) — Herk Harvey's haunting atmospheric cult classic.
+  * *His Girl Friday* (1940) — Howard Hawks's rapid-fire screwball comedy starring Cary Grant and Rosalind Russell.
+  * *A Trip to the Moon* (1902) — Georges Méliès's foundational hand-painted sci-fi milestone.
+  Each entry includes verified direct streaming sources, offline poster artwork, full synopsis metadata, and public domain license attribution.
+
+* **Honest, Actionable Cards for Commercial Titles**:
+  Rather than showing disabled buttons or confusing error states, commercial TMDB entries now feature honest, practical choices:
+  * **"Watch trailer together"**: Loads the official YouTube trailer directly into the synchronized player so the group can preview and hype upcoming releases together.
+  * **"Sync-only room (countdown)"**: Clear copy explains that the full movie streams through each viewer's personal subscription. Clicking the sync service (Netflix, Disney+, Prime Video, Apple TV+, etc.) sets up a companion room with a synchronized 3-2-1 countdown and shared playhead clock, so friends can press play simultaneously in their own accounts.
+
+* **Region-Configurable Seeding**:
+  The offline catalog seed script is now configurable via `SEED_REGION` (defaulting to `"IN"` for India, or any ISO country code) and safely preserves all open and public-domain media records while capturing local availability snapshots.
 
 ---
 

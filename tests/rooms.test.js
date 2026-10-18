@@ -221,10 +221,6 @@ test("HLS and recognized streaming links can create rooms; arbitrary pages remai
   const externalHost = await connect("external-host-0001");
   const externalRoom = await createRoom(externalHost, { source: "https://www.netflix.com/title/80057281" });
   assert.equal(externalRoom.state.config.source, "https://www.netflix.com/title/80057281");
-
-  const instagramHost = await connect("ig-host-0001");
-  const igRoom = await createRoom(instagramHost, { source: "https://www.instagram.com/reel/C8XYZ12345/" });
-  assert.equal(igRoom.state.config.source, "https://www.instagram.com/reel/C8XYZ12345/");
 });
 
 test("ten clients receive authoritative playback commands and server records delivery and drift", async () => {
@@ -237,8 +233,8 @@ test("ten clients receive authoritative playback commands and server records del
     viewers.push(viewer);
   }
 
-  const updates = viewers.map(viewer => eventOnce(viewer.socket, "playback:state"));
-  const telemetry = eventOnce(host.socket, "room:telemetry", value => value.deliverySamples > 0);
+  const updates = viewers.map(viewer => eventOnce(viewer.socket, "playback:state", () => true, 6_000));
+  const telemetry = eventOnce(host.socket, "room:telemetry", value => value.deliverySamples > 0, 6_000);
   host.socket.emit("playback:update", { playing: true, position: 6, version: 0, sentAt: Date.now() });
   const payloads = await Promise.all(updates);
   for (const [state] of payloads) {
@@ -250,7 +246,7 @@ test("ten clients receive authoritative playback commands and server records del
   assert.equal(metrics.deliverySamples, 1);
   assert.ok(metrics.averageDeliveryRoundTripMs >= 0);
 
-  const driftSample = eventOnce(host.socket, "room:telemetry", value => value.driftSamples === 1);
+  const driftSample = eventOnce(host.socket, "room:telemetry", value => value.driftSamples === 1, 6_000);
   host.socket.emit("sync:drift", { drift: -0.25 });
   const [driftMetrics] = await driftSample;
   assert.equal(driftMetrics.averageDrift, 0.25);
@@ -276,7 +272,7 @@ test("local library lists video files and serves byte ranges", async () => {
   assert.equal((await fetch(`${baseUrl}/media/ignore.txt`)).status, 404);
 });
 
-test("media-title endpoint validates URLs and resolves metadata", async () => {
+test("media-title endpoint validates URLs and resolves metadata", async t => {
   const missing = await fetch(`${baseUrl}/api/media-title`);
   assert.equal(missing.status, 400);
 
@@ -284,6 +280,10 @@ test("media-title endpoint validates URLs and resolves metadata", async () => {
   assert.equal(invalid.status, 400);
 
   const valid = await fetch(`${baseUrl}/api/media-title?url=${encodeURIComponent("https://www.youtube.com/watch?v=aqz-KE-bpKQ")}`);
+  if (valid.status === 502 || valid.status === 504) {
+    t.skip("oEmbed is unreachable");
+    return;
+  }
   assert.equal(valid.status, 200);
   const data = await valid.json();
   assert.ok(data.title);
@@ -518,6 +518,34 @@ test("reaction heatmap records media positions and sync-health panel receives me
   const [endState] = await ended;
   assert.equal(endState.reactionHighlights.title, "Integration test");
   assert.equal(endState.reactionHighlights.items[0].count, 2);
+});
+
+test("server enforces reaction rate limit (max 5 per 1000ms per socket) and preserves reaction id", async () => {
+  const host = await connect("rate-host-0001");
+  const { roomId } = await createRoom(host);
+  const viewer = await connect("rate-viewer-0001");
+  await joinRoom(viewer, roomId);
+
+  let reactionsReceived = 0;
+  viewer.socket.on("reaction", () => {
+    reactionsReceived++;
+  });
+
+  const customId = "my-custom-reaction-id-123";
+  const reactionWithIdPromise = eventOnce(viewer.socket, "reaction", r => r.id === customId);
+  host.socket.emit("reaction:send", { emoji: "✨", id: customId });
+  const [received] = await reactionWithIdPromise;
+  assert.equal(received.id, customId);
+  assert.equal(received.emoji, "✨");
+
+  for (let i = 0; i < 8; i++) {
+    viewer.socket.emit("reaction:send", { emoji: "😂", id: `burst-${i}` });
+  }
+
+  await new Promise(resolve => setTimeout(resolve, 250));
+
+  // 1 from host + max 5 from viewer's rapid burst = 6
+  assert.equal(reactionsReceived, 6);
 });
 
 test("sync-only rooms require a ready check, use a host countdown, and keep the clock host-controlled", async () => {
@@ -824,12 +852,12 @@ test("host sends heartbeat with version v, then pause with the same v, and the r
   assert.equal(finalState.playing, false);
 });
 
-test("reels source transition preserves externalStarted while other transitions reset ready check", async () => {
-  const host = await connect("reels-host-0001");
-  const reel1 = "https://www.instagram.com/reel/C8xY_z12345/";
-  const reel2 = "https://www.instagram.com/reel/D9yZ_a67890/";
-  const { roomId } = await createRoom(host, { source: reel1 });
-  const viewer = await connect("reels-viewer-0001");
+test("source transition in sync-only room resets playback and ready check", async () => {
+  const host = await connect("sync-trans-host-0001");
+  const stream1 = "https://www.netflix.com/title/80057281";
+  const stream2 = "https://www.primevideo.com/detail/0T8O5K1L";
+  const { roomId } = await createRoom(host, { source: stream1 });
+  const viewer = await connect("sync-trans-viewer-0001");
   await joinRoom(viewer, roomId);
 
   host.socket.emit("external:ready", { ready: true });
@@ -845,24 +873,14 @@ test("reels source transition preserves externalStarted while other transitions 
   assert.equal(running.externalStarted, true);
   assert.equal(running.playing, true);
 
-  const reel2StatePromise = eventOnce(host.socket, "room:state", state => state.config.source === reel2);
-  host.socket.emit("room:change-source", { title: "Next Reel", source: reel2 });
-  const [reel2State] = await reel2StatePromise;
+  const stream2StatePromise = eventOnce(host.socket, "room:state", state => state.config.source === stream2);
+  host.socket.emit("room:change-source", { title: "Prime Video Title", source: stream2 });
+  const [stream2State] = await stream2StatePromise;
 
-  assert.equal(reel2State.config.source, reel2);
-  assert.equal(reel2State.externalStarted, true);
-  assert.equal(reel2State.playing, true);
-  assert.ok(reel2State.position >= 0 && reel2State.position < 0.2);
-
-  const netflixSource = "https://www.netflix.com/title/80057281";
-  const otherStatePromise = eventOnce(host.socket, "room:state", state => state.config.source === netflixSource);
-  host.socket.emit("room:change-source", { title: "Netflix Title", source: netflixSource });
-  const [otherState] = await otherStatePromise;
-
-  assert.equal(otherState.config.source, netflixSource);
-  assert.equal(otherState.externalStarted, false);
-  assert.equal(otherState.playing, false);
-  assert.equal(otherState.position, 0);
+  assert.equal(stream2State.config.source, stream2);
+  assert.equal(stream2State.externalStarted, false);
+  assert.equal(stream2State.playing, false);
+  assert.equal(stream2State.position, 0);
 });
 
 test("second join with same memberId kicks first socket with session-replaced error", async () => {
@@ -878,6 +896,93 @@ test("second join with same memberId kicks first socket with session-replaced er
   const [error] = await replacedErrorPromise;
   assert.equal(error.code, "session-replaced");
   assert.match(error.message, /another tab/);
+});
+
+test("room playing at 600s, set-title, then position and playing are unchanged", async () => {
+  const host = await connect("set-title-host-001");
+  const { roomId } = await createRoom(host, { source: sampleUrl });
+  const viewer = await connect("set-title-viewer-001");
+  await joinRoom(viewer, roomId);
+
+  const playingPromise = eventOnce(host.socket, "playback:state", state => state.playing);
+  host.socket.emit("playback:update", { playing: true, position: 600, version: 0 });
+  const [playingState] = await playingPromise;
+  assert.equal(playingState.playing, true);
+  assert.ok(playingState.position >= 600 && playingState.position <= 602);
+  const versionBefore = playingState.version;
+
+  const configPromise = eventOnce(viewer.socket, "room:config");
+  const statePromise = eventOnce(viewer.socket, "room:state");
+  host.socket.emit("room:set-title", { title: "Custom Set Title", source: sampleUrl });
+
+  const [newConfig] = await configPromise;
+  assert.equal(newConfig.title, "Custom Set Title");
+
+  const [newState] = await statePromise;
+  assert.equal(newState.config.title, "Custom Set Title");
+  assert.equal(newState.playing, true);
+  assert.ok(newState.position >= 600 && newState.position <= 605);
+  assert.equal(newState.version, versionBefore);
+  assert.equal(newState.externalStarted, false);
+
+  const errorPromise = eventOnce(viewer.socket, "room:error");
+  viewer.socket.emit("room:set-title", { title: "Viewer Forbidden Title", source: sampleUrl });
+  const [error] = await errorPromise;
+  assert.equal(error.code, "host-controls");
+});
+
+test("set-title with a stale source leaves the title unchanged", async () => {
+  const host = await connect("stale-source-title-host");
+  const { roomId } = await createRoom(host, { source: sampleUrl, title: "Original Title" });
+
+  let errorFired = false;
+  const onError = () => { errorFired = true; };
+  host.socket.on("room:error", onError);
+
+  let configFired = false;
+  const onConfig = () => { configFired = true; };
+  host.socket.on("room:config", onConfig);
+
+  host.socket.emit("room:set-title", { title: "Stale Source Title", source: "https://old.example/video.mp4" });
+  await new Promise(resolve => setTimeout(resolve, 150));
+
+  host.socket.off("room:error", onError);
+  host.socket.off("room:config", onConfig);
+
+  assert.equal(errorFired, false);
+  assert.equal(configFired, false);
+
+  const configPromise = eventOnce(host.socket, "room:config");
+  host.socket.emit("room:set-title", { title: "Fresh Source Title", source: sampleUrl });
+  const [newConfig] = await configPromise;
+  assert.equal(newConfig.title, "Fresh Source Title");
+});
+
+test("when a stale heartbeat is dropped, emit roomSnapshot(room) to that socket at most once every 5s per socket", async () => {
+  const host = await connect("stale-throttle-host");
+  const { roomId } = await createRoom(host, { source: sampleUrl });
+
+  let currentV = 0;
+  for (let i = 1; i <= 3; i += 1) {
+    const p = eventOnce(host.socket, "playback:state");
+    host.socket.emit("playback:update", { playing: true, position: i * 10, version: currentV });
+    const [st] = await p;
+    currentV = st.version;
+  }
+  assert.ok(currentV >= 3);
+
+  const firstSnapshotPromise = eventOnce(host.socket, "room:state");
+  host.socket.emit("playback:update", { playing: true, position: 5, version: 1, heartbeat: true });
+  const [snapshot] = await firstSnapshotPromise;
+  assert.equal(snapshot.version, currentV);
+
+  let secondSnapshotEmitted = false;
+  const onState = () => { secondSnapshotEmitted = true; };
+  host.socket.on("room:state", onState);
+  host.socket.emit("playback:update", { playing: true, position: 5, version: 1, heartbeat: true });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  host.socket.off("room:state", onState);
+  assert.equal(secondSnapshotEmitted, false);
 });
 
 

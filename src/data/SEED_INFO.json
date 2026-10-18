@@ -4,5 +4,6 @@
   "region": "NO",
   "tmdbMovies": 32,
   "openMovies": 8,
+  "publicDomainMovies": 5,
   "note": "Offline snapshot. TMDB and streaming availability are not queried at runtime."
 }

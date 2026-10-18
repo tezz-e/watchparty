@@ -91,9 +91,9 @@ try {
   await desktopContext.close();
 
   // ----------------------------------------------------
-  // 2. Mobile View: Instagram Reels Watch Party (390x844 - iPhone 14)
+  // 2. Mobile View: Mobile YouTube Watch Party (390x844 - iPhone 14)
   // ----------------------------------------------------
-  console.log("[2/3] Capturing Mobile Instagram Reels Watch Party (iPhone 14)...");
+  console.log("[2/3] Capturing Mobile Mobile YouTube Watch Party (iPhone 14)...");
   const mobileContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
@@ -108,12 +108,12 @@ try {
   await mobilePage.getByRole("button", { name: /Enter the control room/i }).click();
   await mobilePage.waitForTimeout(500);
 
-  // Start room with Instagram Reel
+  // Start room with YouTube
   await mobilePage.getByRole("button", { name: /Start a room/i }).click();
   await mobilePage.waitForTimeout(400);
 
-  // Fill verified working Instagram Reel
-  await mobilePage.getByPlaceholder(/Paste a video/i).fill("https://www.instagram.com/reel/BsOGulcndj-/");
+  // Fill YouTube video URL
+  await mobilePage.getByPlaceholder(/Paste a video/i).fill("https://www.youtube.com/watch?v=aqz-KE-bpKQ");
   await mobilePage.waitForTimeout(300);
 
   const mobileCreateBtn = mobilePage.locator(".modal-backdrop .primary-action");

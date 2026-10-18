@@ -69,3 +69,49 @@ export function shouldSendHeartbeat({
   return true;
 }
 
+export function enforcePausedPlayback(player, roomPosition) {
+  if (!player) return;
+  const ytState = player.getPlayerState?.();
+  const isPausedOrCued = typeof ytState === "number"
+    ? (ytState === 2 || ytState === 5)
+    : (typeof player.isPaused === "function" ? player.isPaused() : (typeof player.paused === "boolean" ? player.paused : true));
+  if (!isPausedOrCued) {
+    player.pause();
+  }
+  const current = player.currentTime?.() ?? 0;
+  if (Number.isFinite(current) && Number.isFinite(roomPosition) && Math.abs(roomPosition - current) > 1.0) {
+    player.seek(roomPosition);
+    player.pause();
+  }
+}
+
+export function handlePlayerStateChange({
+  eventState,
+  roomPlaying,
+  roomPosition,
+  hasRemote,
+  player,
+  onRemotePlay,
+  onRemotePause,
+}) {
+  if (eventState === 1) {
+    if (!roomPlaying) {
+      if (hasRemote) {
+        onRemotePlay?.(player?.currentTime?.() ?? roomPosition);
+      } else {
+        player?.pause();
+        if (Number.isFinite(roomPosition)) {
+          player?.seek(roomPosition);
+        }
+      }
+    }
+  } else if (eventState === 2) {
+    if (hasRemote && roomPlaying) {
+      onRemotePause?.(player?.currentTime?.() ?? roomPosition);
+    } else if (!hasRemote && roomPlaying) {
+      player?.play();
+    }
+  }
+}
+
+

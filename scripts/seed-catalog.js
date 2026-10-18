@@ -9,10 +9,10 @@ const posterDirectory = join(root, "public", "catalog", "posters");
 const apiRoot = "https://api.themoviedb.org/3";
 const imageRoot = "https://image.tmdb.org/t/p/w500";
 const token = process.env.TMDB_READ_ACCESS_TOKEN;
-const region = (process.env.SEED_REGION || "US").toUpperCase();
+const region = (process.env.SEED_REGION || "IN").toUpperCase();
 const curatedGenres = ["Action", "Adventure", "Animation", "Comedy", "Drama", "Family", "Fantasy", "Science Fiction"];
 const fallback = JSON.parse(await readFile(catalogPath, "utf8"));
-const openMovies = fallback.movies.filter(movie => movie.id.startsWith("open-"));
+const nonTmdbMovies = fallback.movies.filter(movie => !movie.id.startsWith("tmdb-"));
 const posterDownloads = [];
 
 if (process.env.TMDB_TERMS_REVIEWED !== "1") {
@@ -123,9 +123,12 @@ for (const movie of [...selected.values()].slice(0, 32)) {
         .map(provider => [provider.provider_id, { id: provider.provider_id, name: provider.provider_name }]),
     ).values()],
     filename: null,
+    source: null,
     poster,
     tone: "ocean",
     moods: [],
+    attribution: "Metadata from TMDB; streaming availability data by JustWatch.",
+    license: "Commercial copyright; requires personal streaming subscription.",
   });
   await new Promise(resolve => setTimeout(resolve, 150));
 }
@@ -139,14 +142,15 @@ const snapshot = {
   snapshotExpiresAt,
   region,
   source: "TMDB snapshot; streaming availability data by JustWatch.",
-  movies: [...movies, ...openMovies],
+  movies: [...movies, ...nonTmdbMovies],
 };
 const seedInfo = {
   snapshotDate,
   snapshotExpiresAt,
   region,
   tmdbMovies: movies.length,
-  openMovies: openMovies.length,
+  openMovies: nonTmdbMovies.filter(m => m.id.startsWith("open-")).length,
+  publicDomainMovies: nonTmdbMovies.filter(m => m.id.startsWith("pd-")).length,
   note: "Offline snapshot. TMDB and streaming availability are not queried at runtime.",
 };
 const temporaryCatalog = `${catalogPath}.${process.pid}.tmp`;

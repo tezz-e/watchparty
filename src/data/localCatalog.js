@@ -45,14 +45,19 @@ const providerAliases = {
   netflix: "netflix",
   "amazon prime video": "prime-video",
   "prime video": "prime-video",
+  "amazon video": "prime-video",
   "disney plus": "disney-plus",
+  "disney+": "disney-plus",
   "hbo max": "max",
   max: "max",
   hulu: "hulu",
   "paramount plus": "paramount-plus",
+  "paramount+": "paramount-plus",
   peacock: "peacock",
   "apple tv plus": "apple-tv",
+  "apple tv+": "apple-tv",
   "apple tv": "apple-tv",
+  "apple tv store": "apple-tv",
 };
 
 export function externalPlatformUrl(providerName) {

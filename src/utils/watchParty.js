@@ -38,6 +38,49 @@ export function fuzzyMatch(text, query) {
   }));
 }
 
-export const roomId = () => `room-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36).slice(0, 6)}`;
+export const roomId = () => `room-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36).padStart(6, "0").slice(0, 6)}`;
 export const formatTime = (seconds = 0) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 export const desiredPosition = (state, clientNow = Date.now(), clockOffsetMs = 0) => state.playing ? state.position + Math.max(0, clientNow + clockOffsetMs - state.updatedAt) / 1000 : state.position;
+
+export function parseRoomCode(input) {
+  if (typeof input !== "string") return null;
+  let code = input.trim();
+  if (!code) return null;
+
+  if (code.includes("?") || code.includes("://") || code.includes("/") || code.includes("&")) {
+    try {
+      const url = new URL(code, "https://afterglow.local");
+      const roomParam = url.searchParams.get("room");
+      if (roomParam !== null) {
+        code = roomParam.trim();
+      } else {
+        const lastSegment = url.pathname.split("/").filter(Boolean).pop();
+        if (lastSegment && /^room-[a-z0-9]{6}$/i.test(lastSegment)) {
+          code = lastSegment.trim();
+        }
+      }
+    } catch {
+      const match = code.match(/[?&]room=([^&#\s]+)/i);
+      if (match) {
+        code = decodeURIComponent(match[1]).trim();
+      }
+    }
+  }
+
+  code = code.trim().toLowerCase();
+
+  if (/^room\b/i.test(code)) {
+    const suffix = code.replace(/^room\s*[-:_]?\s*/, "");
+    if (/^[a-z0-9]{6}$/.test(suffix)) {
+      return `room-${suffix}`;
+    }
+    return null;
+  }
+
+  if (/^[a-z0-9]{6}$/.test(code)) {
+    return `room-${code}`;
+  }
+
+  return null;
+}
+
