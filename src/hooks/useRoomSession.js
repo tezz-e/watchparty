@@ -29,7 +29,7 @@ export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: null, screenShare: null, reactionHeatmap: [], reactionHighlights: null, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
   const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [reactions, setReactions] = useState([]), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState(""), [localOffset, setLocalOffsetState] = useState(0), [externalReady, setExternalReady] = useState(false), [needsGesture, setNeedsGesture] = useState(false), [sessionReplaced, setSessionReplaced] = useState(false), [lastSeek, setLastSeek] = useState(null);
   const [socketInstance, setSocketInstance] = useState(null);
-  const socket = useRef(null), video = useRef(null), youtubeHost = useRef(null), youtube = youtubeHost, player = useRef(null), playerReadyRef = useRef(false), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), localOffsetRef = useRef(localOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state), reactionIdRef = useRef(0), reactionTimersRef = useRef(new Map()), seenReactionIdsRef = useRef(new Set()), clientReactionTimestampsRef = useRef([]), addReactionItemRef = useRef(null);
+  const socket = useRef(null), video = useRef(null), youtubeHost = useRef(null), youtube = youtubeHost, player = useRef(null), playerReadyRef = useRef(false), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), localOffsetRef = useRef(localOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state), reactionIdRef = useRef(0), reactionTimersRef = useRef(new Map()), seenReactionIdsRef = useRef(new Set()), clientReactionTimestampsRef = useRef([]), addReactionItemRef = useRef(null), sendPlaybackRef = useRef(null);
   stateRef.current = state;
   clockOffsetRef.current = clockOffset;
   localOffsetRef.current = localOffset;
@@ -302,8 +302,8 @@ export function useRoomSession(profile, room) {
             roomPosition: stateRef.current.position,
             hasRemote: hasRemoteRef.current,
             player: mediaPlayer,
-            onRemotePlay: pos => sendPlayback(true, pos),
-            onRemotePause: pos => sendPlayback(false, pos),
+            onRemotePlay: pos => (sendPlaybackRef.current || sendPlayback)(true, pos),
+            onRemotePause: pos => (sendPlaybackRef.current || sendPlayback)(false, pos),
           });
         },
         onError: code => {
@@ -452,9 +452,11 @@ export function useRoomSession(profile, room) {
       position,
       version: stateRef.current.version,
       heartbeat: Boolean(heartbeat),
-      hasRemote,
+      hasRemote: hasRemoteRef.current,
     });
-    if (!hasRemote) return setNotice("The host has the remote.");
+    // Read the ref, not the render-time `hasRemote`: the YouTube onStateChange callback is created once
+    // (effect deps: source/provider) and would otherwise keep a stale `hasRemote === false` forever.
+    if (!hasRemoteRef.current) return setNotice("The host has the remote.");
     stateRef.current = { ...stateRef.current, playing: Boolean(playing), position };
     socket.current?.emit("playback:update", {
       playing,
@@ -464,9 +466,10 @@ export function useRoomSession(profile, room) {
       heartbeat: Boolean(heartbeat),
     });
   };
+  sendPlaybackRef.current = sendPlayback;
   const togglePlayback = () => {
     if (isSyncOnly) {
-      if (!hasRemote) return setNotice("The host has the remote.");
+      if (!hasRemoteRef.current) return setNotice("The host has the remote.");
       if (stateRef.current.playing) {
         send("external:pause");
       } else {
@@ -548,7 +551,7 @@ export function useRoomSession(profile, room) {
     }
     const isHost = stateRef.current.hostId === memberId.current;
     if (!shouldSendHeartbeat({
-      hasRemote,
+      hasRemote: hasRemoteRef.current,
       playing: stateRef.current.playing,
       ready: playerReadyRef.current,
       buffering: bufferingRef.current,

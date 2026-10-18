@@ -354,3 +354,35 @@ test("late join while paused loads paused at the correct position", async () => 
 
   lateAdapter.destroy();
 });
+
+test("host pause in onStateChange uses live hasRemoteRef so pause is not dropped by stale mount closure", async () => {
+  // Simulate mount where hasRemote is initially false (before identity/host resolution)
+  let hasRemote = false;
+  const hasRemoteRef = { current: false };
+
+  let emittedUpdate = null;
+  const sendPlayback = (playing, position) => {
+    // If it checked the stale `hasRemote` variable, it would reject!
+    if (!hasRemoteRef.current) return "rejected";
+    emittedUpdate = { playing, position };
+  };
+  const sendPlaybackRef = { current: sendPlayback };
+
+  const roomState = { playing: true, position: 20 };
+  const onRemotePause = pos => (sendPlaybackRef.current || sendPlayback)(false, pos);
+
+  // Host identity resolves: hasRemoteRef becomes true, but stale closure `hasRemote` was false
+  hasRemoteRef.current = true;
+
+  // Host pauses on YouTube video (event data: 2)
+  handlePlayerStateChange({
+    eventState: 2,
+    roomPlaying: roomState.playing,
+    roomPosition: roomState.position,
+    hasRemote: hasRemoteRef.current,
+    player: { currentTime: () => 20 },
+    onRemotePause,
+  });
+
+  assert.deepEqual(emittedUpdate, { playing: false, position: 20 });
+});
