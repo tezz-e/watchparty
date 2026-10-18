@@ -108,6 +108,9 @@ export function createYoutubePlayer(container, videoId, {
         },
         onStateChange: onStateChangeEvent => {
           if (destroyed) return;
+          if (pendingState.playback === "pause" && onStateChangeEvent.data === 1) {
+            instance?.pauseVideo?.();
+          }
           onStateChange(onStateChangeEvent);
         },
         onError: errorEvent => {
@@ -142,7 +145,11 @@ export function createYoutubePlayer(container, videoId, {
       if (destroyed) return;
       pendingState.seekPosition = position;
       if (!instance?.seekTo) return;
-      return instance.seekTo(position, true);
+      const result = instance.seekTo(position, true);
+      if (pendingState.playback === "pause") {
+        instance.pauseVideo?.();
+      }
+      return result;
     },
     setPlaybackRate: rate => {
       if (destroyed) return;

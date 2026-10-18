@@ -134,6 +134,7 @@ export function registerSocketHandlers(io) {
       }
       if (!Number.isFinite(position) || position < 0 || position > 86_400) return reject(socket, "invalid-position", "That playback position is invalid.");
       if (heartbeat) {
+        if (!room.playing) return;
         if (Number.isFinite(version) && version < room.version) {
           const lastStaleSnapshot = socket.data.lastStaleSnapshotAt || 0;
           if (now() - lastStaleSnapshot >= 5_000) {

@@ -41,16 +41,28 @@ export function useRoomSession(profile, room) {
     : state.config?.control === "shared" || state.hostId === selfId;
   const hasRemoteRef = useRef(hasRemote);
   hasRemoteRef.current = hasRemote;
-  const applyState = next => setState(previous => ({
-    ...previous,
-    ...next,
-    config: next.config ? { ...previous.config, ...next.config } : previous.config,
-    playlist: next.playlist ?? previous.playlist,
-    poll: Object.hasOwn(next, "poll") ? next.poll : previous.poll,
-    screenShare: Object.hasOwn(next, "screenShare") ? next.screenShare : previous.screenShare,
-    reactionHeatmap: next.reactionHeatmap ?? previous.reactionHeatmap,
-    reactionHighlights: Object.hasOwn(next, "reactionHighlights") ? next.reactionHighlights : previous.reactionHighlights,
-  }));
+  const applyState = next => {
+    stateRef.current = {
+      ...stateRef.current,
+      ...next,
+      config: next.config ? { ...stateRef.current.config, ...next.config } : stateRef.current.config,
+      playlist: next.playlist ?? stateRef.current.playlist,
+      poll: Object.hasOwn(next, "poll") ? next.poll : stateRef.current.poll,
+      screenShare: Object.hasOwn(next, "screenShare") ? next.screenShare : stateRef.current.screenShare,
+      reactionHeatmap: next.reactionHeatmap ?? stateRef.current.reactionHeatmap,
+      reactionHighlights: Object.hasOwn(next, "reactionHighlights") ? next.reactionHighlights : stateRef.current.reactionHighlights,
+    };
+    setState(previous => ({
+      ...previous,
+      ...next,
+      config: next.config ? { ...previous.config, ...next.config } : previous.config,
+      playlist: next.playlist ?? previous.playlist,
+      poll: Object.hasOwn(next, "poll") ? next.poll : previous.poll,
+      screenShare: Object.hasOwn(next, "screenShare") ? next.screenShare : previous.screenShare,
+      reactionHeatmap: next.reactionHeatmap ?? previous.reactionHeatmap,
+      reactionHighlights: Object.hasOwn(next, "reactionHighlights") ? next.reactionHighlights : previous.reactionHighlights,
+    }));
+  };
   const getPlayer = () => player.current;
   const getDesiredPosition = playbackState => {
     const desired = getCanonicalPosition(playbackState);
@@ -151,6 +163,7 @@ export function useRoomSession(profile, room) {
           const current = activePlayer.currentTime?.() ?? 0;
           if (Number.isFinite(current) && Number.isFinite(next.position) && Math.abs(next.position - current) > 1.0) {
             activePlayer.seek(next.position);
+            activePlayer.pause();
           }
         }
       }
@@ -437,6 +450,7 @@ export function useRoomSession(profile, room) {
       hasRemote,
     });
     if (!hasRemote) return setNotice("The host has the remote.");
+    stateRef.current = { ...stateRef.current, playing: Boolean(playing), position };
     socket.current?.emit("playback:update", {
       playing,
       position,
@@ -446,20 +460,26 @@ export function useRoomSession(profile, room) {
     });
   };
   const togglePlayback = () => {
-    const playing = !stateRef.current.playing;
-    if (playing) {
-      const result = getPlayer()?.play();
+    const nextPlaying = !stateRef.current.playing;
+    const activePlayer = getPlayer();
+    if (nextPlaying) {
+      const result = activePlayer?.play();
       result?.then?.(() => setNeedsGesture(false))?.catch?.(error => {
         if (error?.name === "NotAllowedError") {
           setNeedsGesture(true);
           setNotice("Tap play once to allow this browser to start media.");
         }
       });
+    } else {
+      activePlayer?.pause();
+      setNeedsGesture(false);
     }
     const position = isSyncOnly
       ? getCanonicalPosition(stateRef.current)
-      : getPlayer()?.currentTime() || getDesiredPosition(stateRef.current);
-    sendPlayback(playing, position);
+      : activePlayer?.currentTime() || getDesiredPosition(stateRef.current);
+    stateRef.current = { ...stateRef.current, playing: nextPlaying, position };
+    setState(previous => ({ ...previous, playing: nextPlaying, position }));
+    sendPlayback(nextPlaying, position);
   };
   const handleJoinPlayback = () => {
     if (!stateRef.current.playing) return;
@@ -502,6 +522,7 @@ export function useRoomSession(profile, room) {
   };
   const onTime = () => {
     const timestamp = Date.now();
+    if (!stateRef.current.playing) return;
     const mediaPlayer = getPlayer();
     if (!mediaPlayer) return;
     const currentTime = mediaPlayer.currentTime();

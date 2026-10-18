@@ -72,10 +72,10 @@ export function shouldSendHeartbeat({
 export function enforcePausedPlayback(player, roomPosition) {
   if (!player) return;
   const ytState = player.getPlayerState?.();
-  const isPausedOrCued = typeof ytState === "number"
-    ? (ytState === 2 || ytState === 5)
-    : (typeof player.isPaused === "function" ? player.isPaused() : (typeof player.paused === "boolean" ? player.paused : true));
-  if (!isPausedOrCued) {
+  const isPlayingOrBuffering = typeof ytState === "number"
+    ? (ytState === 1 || ytState === 3)
+    : (typeof player.isPaused === "function" ? !player.isPaused() : (typeof player.paused === "boolean" ? !player.paused : false));
+  if (isPlayingOrBuffering) {
     player.pause();
   }
   const current = player.currentTime?.() ?? 0;
@@ -96,14 +96,16 @@ export function handlePlayerStateChange({
 }) {
   if (eventState === 1) {
     if (!roomPlaying) {
-      if (hasRemote) {
-        onRemotePlay?.(player?.currentTime?.() ?? roomPosition);
-      } else {
+      player?.pause();
+      const current = player?.currentTime?.() ?? 0;
+      if (Number.isFinite(roomPosition) && Math.abs(current - roomPosition) > 1.0) {
+        player?.seek(roomPosition);
         player?.pause();
-        if (Number.isFinite(roomPosition)) {
-          player?.seek(roomPosition);
-        }
       }
+    }
+  } else if (eventState === 3) {
+    if (!roomPlaying) {
+      player?.pause();
     }
   } else if (eventState === 2) {
     if (hasRemote && roomPlaying) {
