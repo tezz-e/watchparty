@@ -39,7 +39,7 @@ export function makeRoom(id) {
 
 export function currentPosition(room) {
   if (!room.playing) return room.position;
-  return Math.max(0, room.position + (now() - room.updatedAt) / 1000);
+  return Math.max(0, room.position + Math.max(0, now() - room.updatedAt) / 1000);
 }
 
 export function roomSnapshot(room) {
@@ -84,7 +84,7 @@ export function roomSnapshot(room) {
 export function memberList(room) {
   return [...room.members.values()]
     .sort((a, b) => a.joinedAt - b.joinedAt)
-    .map(({ id, name, joinedAt, online, buffering, externalReady, rttMs, clockOffsetMs, drift }) => ({
+    .map(({ id, name, joinedAt, online, buffering, externalReady, rttMs, clockOffsetMs, drift, syncOffset }) => ({
       id,
       name,
       joinedAt,
@@ -94,6 +94,7 @@ export function memberList(room) {
       rttMs,
       clockOffsetMs,
       drift,
+      syncOffset: syncOffset || null,
       host: id === room.hostId,
     }));
 }

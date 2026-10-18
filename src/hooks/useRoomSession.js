@@ -27,7 +27,7 @@ function createReactionItem(emoji, id) {
 
 export function useRoomSession(profile, room) {
   const [state, setState] = useState({ playing: false, position: 0, updatedAt: Date.now(), version: 0, config: room, playlist: [], poll: null, screenShare: null, reactionHeatmap: [], reactionHighlights: null, mood: { current: null, counts: {}, voters: 0 }, telemetry: { commands: 0, averageDrift: null, maxDrift: 0, averageDeliveryRoundTripMs: null, deliverySamples: 0, deliveryTimeouts: 0 } });
-  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [reactions, setReactions] = useState([]), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState(""), [localOffset, setLocalOffsetState] = useState(0), [externalReady, setExternalReady] = useState(false), [needsGesture, setNeedsGesture] = useState(false), [sessionReplaced, setSessionReplaced] = useState(false);
+  const [connected, setConnected] = useState(false), [selfId, setSelfId] = useState(null), [members, setMembers] = useState([]), [messages, setMessages] = useState([]), [reaction, setReaction] = useState(null), [reactions, setReactions] = useState([]), [copied, setCopied] = useState(false), [latency, setLatency] = useState(null), [clockOffset, setClockOffset] = useState(0), [notice, setNotice] = useState(""), [localOffset, setLocalOffsetState] = useState(0), [externalReady, setExternalReady] = useState(false), [needsGesture, setNeedsGesture] = useState(false), [sessionReplaced, setSessionReplaced] = useState(false), [lastSeek, setLastSeek] = useState(null);
   const [socketInstance, setSocketInstance] = useState(null);
   const socket = useRef(null), video = useRef(null), youtubeHost = useRef(null), youtube = youtubeHost, player = useRef(null), playerReadyRef = useRef(false), bufferingRef = useRef(false), clockOffsetRef = useRef(clockOffset), localOffsetRef = useRef(localOffset), clockEstimator = useRef(createClockOffsetEstimator()), lastHeartbeat = useRef(0), lastDriftSample = useRef(0), createOnNextConnect = useRef(Boolean(room.create)), memberId = useRef(createMemberId()), stateRef = useRef(state), reactionIdRef = useRef(0), reactionTimersRef = useRef(new Map()), seenReactionIdsRef = useRef(new Set()), clientReactionTimestampsRef = useRef([]), addReactionItemRef = useRef(null);
   stateRef.current = state;
@@ -197,6 +197,11 @@ export function useRoomSession(profile, room) {
     client.on("poll:update", poll => setState(previous => ({ ...previous, poll })));
     client.on("mood:update", mood => setState(previous => ({ ...previous, mood })));
     client.on("room:telemetry", telemetry => setState(previous => ({ ...previous, telemetry })));
+    client.on("external:seek", data => {
+      setLastSeek(data);
+      const timeStr = data?.formatted || "target time";
+      setNotice(`${data?.hostName || "Host"} jumped the shared clock to ${timeStr}. Seek your player to ${timeStr}.`);
+    });
     client.on("room:error", error => {
       wpDebug("[wp-debug] server rejection error", error);
       if (error?.code === "session-replaced") {
@@ -460,6 +465,15 @@ export function useRoomSession(profile, room) {
     });
   };
   const togglePlayback = () => {
+    if (isSyncOnly) {
+      if (!hasRemote) return setNotice("The host has the remote.");
+      if (stateRef.current.playing) {
+        send("external:pause");
+      } else {
+        send("external:countdown");
+      }
+      return;
+    }
     const nextPlaying = !stateRef.current.playing;
     const activePlayer = getPlayer();
     if (nextPlaying) {
@@ -568,5 +582,5 @@ export function useRoomSession(profile, room) {
     }
   };
 
-  return { socket: socketInstance, state, connected, selfId, members, messages, reaction: reactions[reactions.length - 1]?.emoji || null, reactions, sendReaction, removeReaction, copied, latency, notice, setNotice, video, youtube: youtubeHost, youtubeHost, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current, needsGesture, setNeedsGesture, handleJoinPlayback, resyncPlayback, sessionReplaced, reconnectThisTab };
+  return { socket: socketInstance, state, connected, selfId, members, messages, reaction: reactions[reactions.length - 1]?.emoji || null, reactions, sendReaction, removeReaction, copied, latency, notice, setNotice, video, youtube: youtubeHost, youtubeHost, provider, platform: streamingPlatform(config.source), reportBuffering, reportMediaFailure, getPlayer, getDesiredPosition, getCanonicalPosition, hasRemote, config, send, sendPlayback, endPlayback, togglePlayback, onTime, share, requestScreenTicket, externalReady, setExternalReady: ready => { setExternalReady(ready); send("external:ready", { ready }); }, localOffset, updateLocalOffset, getServerNow: () => Date.now() + clockOffsetRef.current, needsGesture, setNeedsGesture, handleJoinPlayback, resyncPlayback, sessionReplaced, reconnectThisTab, lastSeek, setLastSeek };
 }

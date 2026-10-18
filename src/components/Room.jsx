@@ -9,6 +9,28 @@ import { getMediaPoster } from "../utils/mediaPoster.js";
 import { useWebRTCScreenShare } from "../hooks/useWebRTCScreenShare.js";
 import "./YoutubePlayer.css";
 import "./RoomFeatures.css";
+import "./SyncOnlyCompanion.css";
+import { serverUrl } from "../utils/serverUrl.js";
+import {
+  CompanionCueManager,
+  FALLBACK_PIP_EXPLANATION,
+  createWakeLockController,
+  getSyncRoomTabTitle,
+  isDocumentPipSupported,
+} from "../utils/companionCues.js";
+import {
+  SyncOnlyCompanionPortal,
+  openDocumentPictureInPicture,
+} from "./SyncOnlyCompanionWindow.jsx";
+import {
+  DesktopRemoteHint,
+  MobileRemoteView,
+} from "./MobileRemoteView.jsx";
+import {
+  SyncOnlySetupGuide,
+  getSyncGuideDismissed,
+} from "./SyncOnlySetupGuide.jsx";
+import { SyncOnlyCompanion } from "./SyncOnlyCompanion.jsx";
 
 export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
   const [draft, setDraft] = useState("");
@@ -51,6 +73,7 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
     localOffset, updateLocalOffset, getServerNow,
     requestScreenTicket,
     needsGesture, setNeedsGesture, handleJoinPlayback, resyncPlayback, sessionReplaced, reconnectThisTab,
+    getCanonicalPosition, lastSeek, setLastSeek,
   } = useRoomSession(profile, room);
 
   const canPublishScreen = state.hostId === selfId || state.config?.control === "shared";
@@ -99,23 +122,256 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
     return () => clearInterval(interval);
   }, [isSyncOnly, state.externalCountdown?.startsAt]);
 
+  // Requirement 8: PiP companion, Sound Cues, Setup Guide, Mobile Remote & Wake Lock
+  const [pipWindow, setPipWindow] = useState(null);
+  const [pipFallbackNotice, setPipFallbackNotice] = useState(false);
+  const pipWindowRef = useRef(null);
+  pipWindowRef.current = pipWindow;
+
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    try {
+      return localStorage.getItem("afterglow:sound-cues") === "true";
+    } catch (e) {
+      return false;
+    }
+  });
+  const cueManagerRef = useRef(null);
+  if (!cueManagerRef.current) {
+    cueManagerRef.current = new CompanionCueManager();
+    cueManagerRef.current.soundEnabled = soundEnabled;
+  }
+
+  const [setupGuideOpen, setSetupGuideOpen] = useState(false);
+  const [remoteMode, setRemoteMode] = useState(false);
+  const [forceFullView, setForceFullView] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 600px)").matches
+  );
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [wakeLockActive, setWakeLockActive] = useState(false);
+  const wakeLockRef = useRef(null);
+
+  // Sync cueManager sound state
+  useEffect(() => {
+    if (cueManagerRef.current) {
+      cueManagerRef.current.soundEnabled = soundEnabled;
+    }
+  }, [soundEnabled]);
+
+  // Document PiP launcher
+  const handleOpenFloatingTimer = async () => {
+    if (!isDocumentPipSupported()) {
+      setPipFallbackNotice(true);
+      return;
+    }
+    try {
+      if (pipWindow && !pipWindow.closed) {
+        pipWindow.focus();
+        return;
+      }
+      const win = await openDocumentPictureInPicture({ width: 340, height: 260 });
+      win.addEventListener("pagehide", () => {
+        setPipWindow(null);
+      });
+      setPipWindow(win);
+      setPipFallbackNotice(false);
+    } catch (err) {
+      console.warn("Could not open floating timer window:", err);
+      setPipFallbackNotice(true);
+    }
+  };
+
+  // Close floating window on unmount
+  useEffect(() => {
+    return () => {
+      if (pipWindowRef.current && !pipWindowRef.current.closed) {
+        try {
+          pipWindowRef.current.close();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  // Sound cues toggle with user gesture unlock
+  const toggleSoundCues = async () => {
+    if (!soundEnabled) {
+      await cueManagerRef.current?.unlock();
+      setSoundEnabled(true);
+      try {
+        localStorage.setItem("afterglow:sound-cues", "true");
+      } catch (e) {}
+    } else {
+      cueManagerRef.current?.disableSound();
+      setSoundEnabled(false);
+      try {
+        localStorage.setItem("afterglow:sound-cues", "false");
+      } catch (e) {}
+    }
+  };
+
+  // Schedule audio & speech cues against server clock startsAt
+  const lastCountdownStartsAt = useRef(null);
+  useEffect(() => {
+    if (!isSyncOnly || !soundEnabled) return;
+    const startsAt = state.externalCountdown?.startsAt;
+    if (startsAt && startsAt !== lastCountdownStartsAt.current) {
+      lastCountdownStartsAt.current = startsAt;
+      cueManagerRef.current?.scheduleCountdownCues({
+        startsAt,
+        getServerNow,
+      });
+    } else if (!startsAt && lastCountdownStartsAt.current) {
+      lastCountdownStartsAt.current = null;
+      cueManagerRef.current?.cancelCountdownCues();
+    }
+  }, [isSyncOnly, soundEnabled, state.externalCountdown?.startsAt, getServerNow]);
+
+  // Audio & speech cue on pause
+  const prevPlayingRef = useRef(state.playing);
+  useEffect(() => {
+    if (!isSyncOnly || !soundEnabled) {
+      prevPlayingRef.current = state.playing;
+      return;
+    }
+    if (prevPlayingRef.current === true && state.playing === false && state.externalStarted) {
+      cueManagerRef.current?.playPauseCue(formatTime(position));
+    }
+    prevPlayingRef.current = state.playing;
+  }, [isSyncOnly, soundEnabled, state.playing, state.externalStarted, position]);
+
+  // Tab Title updates for sync-only rooms
+  useEffect(() => {
+    if (!isSyncOnly) return undefined;
+    const isCountdown = Boolean(state.externalCountdown && countdownSeconds !== null && countdownSeconds > 0);
+    const newTitle = getSyncRoomTabTitle({
+      isSyncOnly: true,
+      isCountdown,
+      isPlaying: state.playing,
+      position,
+    });
+    document.title = newTitle;
+
+    return () => {
+      document.title = "Afterglow — Watch together";
+    };
+  }, [isSyncOnly, state.externalCountdown, countdownSeconds, state.playing, Math.floor(position)]);
+
+  // Auto-open Setup Guide on first join
+  useEffect(() => {
+    if (isSyncOnly && room?.id && !getSyncGuideDismissed(room.id)) {
+      setSetupGuideOpen(true);
+    }
+  }, [isSyncOnly, room?.id]);
+
+  // Screen Wake Lock API
+  useEffect(() => {
+    if (!isSyncOnly) return undefined;
+    const controller = createWakeLockController();
+    wakeLockRef.current = controller;
+    controller.start().then(lock => {
+      setWakeLockActive(Boolean(lock));
+    });
+
+    return () => {
+      controller.stop();
+      setWakeLockActive(false);
+    };
+  }, [isSyncOnly]);
+
+  // Mobile viewport detection
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const mq = window.matchMedia("(max-width: 600px)");
+    const handler = e => setIsMobileViewport(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Fetch invite URL for mobile QR code and links
+  useEffect(() => {
+    if (!isSyncOnly || !room?.id) return;
+    if (typeof window !== "undefined") {
+      const fallbackUrl = new URL(window.location.origin);
+      fallbackUrl.searchParams.set("room", room.id);
+      setInviteUrl(fallbackUrl.href);
+    }
+    fetch(`${serverUrl}/api/invite-origin?pageOrigin=${encodeURIComponent(location.origin)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.origin) {
+          const invite = new URL(data.origin);
+          invite.pathname = "/";
+          invite.searchParams.set("room", room.id);
+          setInviteUrl(invite.href);
+        }
+      })
+      .catch(() => {});
+  }, [isSyncOnly, room?.id]);
+
+  if (isSyncOnly && (isMobileViewport || remoteMode) && !forceFullView) {
+    return (
+      <SoftField className="room-page" theme={theme}>
+        <MobileRemoteView
+          room={room}
+          state={state}
+          selfId={selfId}
+          position={position}
+          countdownSeconds={countdownSeconds}
+          externalReady={externalReady}
+          setExternalReady={setExternalReady}
+          hasRemote={hasRemote}
+          localOffset={localOffset}
+          updateLocalOffset={updateLocalOffset}
+          send={send}
+          togglePlayback={togglePlayback}
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSoundCues}
+          wakeLockActive={wakeLockActive}
+          sendReaction={sendReaction}
+          onExitRemoteMode={() => {
+            setRemoteMode(false);
+            setForceFullView(true);
+          }}
+          theme={theme}
+        />
+        <SyncOnlyCompanionPortal
+          pipWindow={pipWindow}
+          room={room}
+          state={state}
+          position={position}
+          countdownSeconds={countdownSeconds}
+          localOffset={localOffset}
+          hasRemote={hasRemote}
+          onNudge={delta => updateLocalOffset(localOffset + delta)}
+          onSyncReset={() => {
+            updateLocalOffset(0);
+            if (!externalReady) setExternalReady(true);
+          }}
+          onTogglePlayback={togglePlayback}
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSoundCues}
+          onClose={() => {
+            pipWindow?.close();
+            setPipWindow(null);
+          }}
+        />
+        <SyncOnlySetupGuide
+          isOpen={setupGuideOpen}
+          onClose={() => setSetupGuideOpen(false)}
+          roomId={room?.id}
+          platformName={platform?.name}
+          theme={theme}
+        />
+      </SoftField>
+    );
+  }
+
   return (
     <SoftField className="room-page" theme={theme}>
       <header className="room-nav">
         <button className="back-button" onClick={() => setConfirmLeave(true)}>← Lobby</button>
         <Wordmark/>
         <div className="room-actions">
-          {hasRemote && (
-            <button
-              type="button"
-              className="change-video-nav-pill"
-              onClick={() => setChangeMediaOpen(true)}
-              title="Change video or switch media for the room"
-            >
-              <Icon name="swap" size={14} />
-              <span>Change Video</span>
-            </button>
-          )}
           <ThemeSelect theme={theme} onChange={onThemeChange}/>
           <div className="room-status" title={`${latency ?? "—"}ms latency · ${onlineMembers.length} member(s) online`}>
             <span className={connected ? "status-led" : "status-led dim"}/>
@@ -366,6 +622,16 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                   <Icon name="device" size={14}/>
                   <span><strong>Want everyone watching one screen?</strong> Use <em>Screen Share</em> at the top right to broadcast your window directly to the room!</span>
                 </div>
+                <DesktopRemoteHint
+                  roomId={room?.id}
+                  inviteUrl={inviteUrl}
+                  onOpenRemoteMode={() => {
+                    setForceFullView(false);
+                    setRemoteMode(true);
+                  }}
+                  onCopyLink={copyRoomCode}
+                  copied={codeCopied}
+                />
               </div>
             )}
 
@@ -424,10 +690,12 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
                   value={Math.min(position, duration)}
                   onChange={event => {
                     const nextPosition = Number(event.target.value);
-                    player?.seek(nextPosition);
-                    sendPlayback(state.playing, isSyncOnly
-                      ? Math.max(0, nextPosition - localOffset)
-                      : nextPosition);
+                    if (isSyncOnly) {
+                      send("external:seek", { position: nextPosition });
+                    } else {
+                      player?.seek(nextPosition);
+                      sendPlayback(state.playing, nextPosition);
+                    }
                   }}
                   style={{ "--track": `${Math.min(position / duration * 100, 100)}%` }}
                 />
@@ -470,42 +738,78 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
             )}
           </div>
           {isSyncOnly && (
-            <section className="external-room-controls">
-              <div className="external-controls-copy">
-                <span className="eyebrow"><span/>SYNC-ONLY READY CHECK</span>
-                <p>Afterglow coordinates the shared room clock, ready check, and social reactions. Open the title in your own account, cue to 00:00, then mark yourself ready.</p>
-                <div className="external-ready-list">
-                  {onlineMembers.map(member => <span key={member.id} className={member.externalReady ? "ready" : ""}>{member.name} · {member.externalReady ? "READY" : "NOT READY"}</span>)}
-                  {!onlineMembers.length && <span>Waiting for participants…</span>}
-                </div>
-              </div>
-              <div className="external-controls-actions">
-                <button className={externalReady ? "external-ready-toggle ready" : "external-ready-toggle"} onClick={() => setExternalReady(!externalReady)}>
-                  {externalReady ? "I’m ready" : "Mark me ready"}
+            <SyncOnlyCompanion
+              state={state}
+              selfId={selfId}
+              members={members}
+              onlineMembers={onlineMembers}
+              readyMembers={readyMembers}
+              isHost={state.hostId === selfId}
+              platform={platform}
+              config={config}
+              send={send}
+              externalReady={externalReady}
+              setExternalReady={setExternalReady}
+              localOffset={localOffset}
+              updateLocalOffset={updateLocalOffset}
+              getCanonicalPosition={getCanonicalPosition}
+              getServerNow={getServerNow}
+              countdownSeconds={countdownSeconds}
+              lastSeek={lastSeek}
+              onClearSeek={() => setLastSeek(null)}
+            >
+              <div className="companion-toolbar-row">
+                <button
+                  type="button"
+                  className={`companion-action-pill ${pipWindow ? "active" : ""}`}
+                  onClick={handleOpenFloatingTimer}
+                  title={isDocumentPipSupported() ? "Open floating companion timer window" : FALLBACK_PIP_EXPLANATION}
+                >
+                  <Icon name="pip" size={14} />
+                  <span>{pipWindow ? "Floating Timer Active" : "Open floating timer"}</span>
                 </button>
-                {state.hostId === selfId && !state.externalStarted && (
-                  <button
-                    className="external-countdown-button"
-                    disabled={!onlineMembers.length || readyMembers.length !== onlineMembers.length}
-                    onClick={() => send("external:countdown")}
-                  >
-                    {countdownSeconds !== null && countdownSeconds > 0 ? `Starting in ${Math.ceil(countdownSeconds)}…` : "Start 3-2-1"}
-                  </button>
-                )}
-                {state.hostId === selfId && countdownSeconds !== null && countdownSeconds > 0 && (
-                  <button className="external-cancel-button" onClick={() => send("external:countdown-cancel")}>Cancel countdown</button>
-                )}
-                {state.externalStarted && <span className="external-clock-status">{state.playing ? "Shared clock running" : "Shared clock paused"}</span>}
+
+                <button
+                  type="button"
+                  className={`companion-action-pill ${soundEnabled ? "active" : ""}`}
+                  onClick={toggleSoundCues}
+                  title={soundEnabled ? "Sound cues active (Web Audio beeps + Web Speech)" : "Enable sound cues"}
+                >
+                  <Icon name="sound" size={14} />
+                  <span>{soundEnabled ? "Sound cues: ON" : "Enable sound cues"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="companion-action-pill"
+                  onClick={() => setSetupGuideOpen(true)}
+                  title="View sync-only setup recommendations"
+                >
+                  <Icon name="help" size={14} />
+                  <span>Setup Guide</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="companion-action-pill"
+                  onClick={() => {
+                    setForceFullView(false);
+                    setRemoteMode(true);
+                  }}
+                  title="Switch to full-screen mobile remote mode"
+                >
+                  <Icon name="mobile" size={14} />
+                  <span>Remote Mode</span>
+                </button>
               </div>
-              <div className="external-offset">
-                <span>YOUR CLOCK NUDGE</span>
-                <button aria-label="Nudge my clock earlier" onClick={() => updateLocalOffset(localOffset - 0.25)}>−</button>
-                <b>{localOffset > 0 ? "+" : ""}{localOffset.toFixed(2)}s</b>
-                <button aria-label="Nudge my clock later" onClick={() => updateLocalOffset(localOffset + 0.25)}>+</button>
-                <button className="offset-reset" onClick={() => updateLocalOffset(0)}>Reset</button>
-                <small>Only your shared clock changes, not the streaming player.</small>
-              </div>
-            </section>
+
+              {pipFallbackNotice && (
+                <div className="pip-fallback-banner" role="alert">
+                  <span>{FALLBACK_PIP_EXPLANATION}</span>
+                  <button type="button" onClick={() => setPipFallbackNotice(false)} aria-label="Dismiss notice">✕</button>
+                </div>
+              )}
+            </SyncOnlyCompanion>
           )}
           <div className="room-notes">
             <div>
@@ -655,6 +959,38 @@ export default function Room({ profile, room, onLeave, theme, onThemeChange }) {
         onUpdate={({ title, source }) => send("room:change-source", { title, source })}
         theme={theme}
       />
+      {isSyncOnly && (
+        <>
+          <SyncOnlyCompanionPortal
+            pipWindow={pipWindow}
+            room={room}
+            state={state}
+            position={position}
+            countdownSeconds={countdownSeconds}
+            localOffset={localOffset}
+            hasRemote={hasRemote}
+            onNudge={delta => updateLocalOffset(localOffset + delta)}
+            onSyncReset={() => {
+              updateLocalOffset(0);
+              if (!externalReady) setExternalReady(true);
+            }}
+            onTogglePlayback={togglePlayback}
+            soundEnabled={soundEnabled}
+            onToggleSound={toggleSoundCues}
+            onClose={() => {
+              pipWindow?.close();
+              setPipWindow(null);
+            }}
+          />
+          <SyncOnlySetupGuide
+            isOpen={setupGuideOpen}
+            onClose={() => setSetupGuideOpen(false)}
+            roomId={room?.id}
+            platformName={platform?.name}
+            theme={theme}
+          />
+        </>
+      )}
     </SoftField>
   );
 }

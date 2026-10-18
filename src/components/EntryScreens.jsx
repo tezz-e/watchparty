@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isMixedContent, mediaProvider, streamingPlatform, tints, validMediaUrl, youtubeVideoId } from "../data/catalog.js";
-import { catalog, catalogAvailability, catalogCategories, catalogGenres, catalogSnapshot, externalPlatformUrl, searchCatalog, syncServices } from "../data/localCatalog.js";
+import { catalog, catalogAvailability, catalogCategories, catalogGenres, catalogSnapshot, externalPlatformUrl, getCatalogBadge, searchCatalog, syncServices } from "../data/localCatalog.js";
 import { parseRoomCode, roomId } from "../utils/watchParty.js";
 import { serverUrl } from "../utils/serverUrl.js";
 import { fetchMediaTitle } from "../utils/mediaTitle.js";
@@ -227,6 +227,7 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
           const hasPlayableSource = item.available;
           const hasTrailer = Boolean(item.trailerKey);
           const trailerSource = hasTrailer ? `https://www.youtube.com/watch?v=${item.trailerKey}` : "";
+          const badge = getCatalogBadge(item, localFilenames);
 
           const availableSyncOptions = (item.availability || [])
             .map(name => ({ name, url: externalPlatformUrl(name) }))
@@ -268,6 +269,7 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
                   <img src={item.poster || "/catalog/posters/big-buck-bunny.svg"} alt="" loading="lazy"/>
                   <span>{item.category}</span>
                   <b>{item.year || item.duration}</b>
+                  <span className={`catalog-pill-badge ${badge.className}`}>{badge.label}</span>
                 </span>
                 <span className="catalog-info">
                   <small>{item.note}</small>
@@ -290,7 +292,7 @@ export function Discovery({ query, setQuery, category, setCategory, onSelect, on
                         margin: "2px 0 6px"
                       }}
                     >
-                      Full movie plays on your own subscription, while the trailer can be watched together right here.
+                      Full movie requires a streaming subscription; trailer plays directly here.
                     </span>
                   )}
                   {item.attribution && (

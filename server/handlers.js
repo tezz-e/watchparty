@@ -17,6 +17,7 @@ import { cleanText, validMediaUrl, validMemberId, validRoomId } from "./validati
 import { publishPlayback } from "./telemetry.js";
 import { mediaProvider } from "../shared/media.js";
 import { canPublishScreen, liveKitService } from "./livekit.js";
+import { formatTimecode } from "../src/utils/syncOnlyMath.js";
 
 const moodByEmoji = { "✨": "uplifting", "♥": "cozy", "⚡": "energetic", "👏": "thrilling", "😂": "playful" };
 const isSyncOnly = source => mediaProvider(source) === "external";
@@ -52,6 +53,7 @@ export function registerSocketHandlers(io) {
       member.rttMs ??= null;
       member.clockOffsetMs ??= null;
       member.drift ??= null;
+      member.syncOffset ??= null;
       member.socketId = socket.id;
       room.members.set(memberId, member);
       if (room.externalCountdown && !room.externalStarted) {
@@ -176,7 +178,23 @@ export function registerSocketHandlers(io) {
       publishPresence(room);
     });
 
-    socket.on("media:buffering", ({ buffering } = {}) => {
+    socket.on("sync:offset", (payload) => {
+      const { offsetSeconds, status, diffSeconds } = payload || {};
+      const room = roomFor(socket);
+      const member = room?.members.get(socket.data.memberId);
+      if (!room || !member) return;
+      if (!Number.isFinite(offsetSeconds) || Math.abs(offsetSeconds) > 86_400) return;
+      member.syncOffset = {
+        offsetSeconds,
+        status: cleanText(status, "in-sync", 32),
+        diffSeconds: Number.isFinite(diffSeconds) ? diffSeconds : 0,
+        reportedAt: now(),
+      };
+      publishPresence(room);
+    });
+
+    socket.on("media:buffering", (payload) => {
+      const { buffering } = payload || {};
       const room = roomFor(socket);
       const member = room?.members.get(socket.data.memberId);
       if (!room || !member || typeof buffering !== "boolean") return;
@@ -185,7 +203,8 @@ export function registerSocketHandlers(io) {
       publishPresence(room);
     });
 
-    socket.on("external:ready", ({ ready } = {}) => {
+    socket.on("external:ready", (payload) => {
+      const { ready } = payload || {};
       const room = roomFor(socket);
       if (room) settleExternalCountdown(room);
       const member = room?.members.get(socket.data.memberId);
@@ -202,23 +221,53 @@ export function registerSocketHandlers(io) {
       publishState(room);
     });
 
-    socket.on("external:countdown", () => {
+    socket.on("external:pause", () => {
+      const room = roomFor(socket);
+      if (!room || !isSyncOnly(room.config.source)) {
+        return reject(socket, "external-pause-unavailable", "The pause is only available in sync-only rooms.");
+      }
+      settleExternalCountdown(room);
+      if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can pause the room clock.");
+
+      const pausedAt = currentPosition(room);
+      room.position = pausedAt;
+      room.playing = false;
+      room.updatedAt = now();
+      room.externalCountdown = null;
+      room.externalStarted = true;
+      for (const member of room.members.values()) {
+        member.externalReady = false;
+      }
+      room.version += 1;
+      publishPresence(room);
+      publishState(room);
+    });
+
+    socket.on("external:countdown", (payload) => {
+      const { override } = payload || {};
       const room = roomFor(socket);
       if (!room || !isSyncOnly(room.config.source)) {
         return reject(socket, "external-countdown-unavailable", "The countdown is only available in sync-only rooms.");
       }
       settleExternalCountdown(room);
       if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can start the room countdown.");
-      if (room.externalStarted) return reject(socket, "external-already-started", "The shared clock is already running; pause or resume it with the room controls.");
-      const participants = onlineMembers(room);
-      if (!participants.length || participants.some(member => !member.externalReady)) {
-        return reject(socket, "external-not-ready", "Everyone online must mark themselves ready before the countdown.");
+      if (room.playing) {
+        return reject(socket, "external-already-started", "The shared clock is already running; pause or resume it with the room controls.");
+      }
+      if (!override) {
+        const participants = onlineMembers(room);
+        if (!participants.length || participants.some(member => !member.externalReady)) {
+          return reject(socket, "external-not-ready", "Everyone online must mark themselves ready before the countdown.");
+        }
       }
       const startsAt = now() + 3000;
-      room.externalStarted = false;
-      room.externalCountdown = { startsAt };
+      const isInitialStart = !room.externalStarted;
+      if (isInitialStart) {
+        room.position = 0;
+        room.externalStarted = false;
+      }
+      room.externalCountdown = { startsAt, resumingFrom: room.position };
       room.playing = true;
-      room.position = 0;
       room.updatedAt = startsAt;
       room.version += 1;
       publishState(room);
@@ -235,12 +284,53 @@ export function registerSocketHandlers(io) {
       if (!room || !isSyncOnly(room.config.source)) return;
       if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can cancel the room countdown.");
       if (!room.externalCountdown || room.externalCountdown.startsAt <= now()) return;
+      const resuming = room.externalStarted && Number.isFinite(room.externalCountdown.resumingFrom);
+      room.position = resuming ? room.externalCountdown.resumingFrom : 0;
       room.externalCountdown = null;
-      room.externalStarted = false;
+      room.externalStarted = resuming;
       room.playing = false;
-      room.position = 0;
       room.updatedAt = now();
       room.version += 1;
+      publishState(room);
+    });
+
+    socket.on("external:seek", (payload) => {
+      const { position } = payload || {};
+      const room = roomFor(socket);
+      if (!room || !isSyncOnly(room.config.source)) {
+        return reject(socket, "external-seek-unavailable", "Seeking the shared clock is only available in sync-only rooms.");
+      }
+      settleExternalCountdown(room);
+      if (!isHost(room, socket)) return reject(socket, "host-only", "Only the host can seek the room clock.");
+      if (typeof position !== "number" || !Number.isFinite(position) || position < 0 || position > 86_400) {
+        return reject(socket, "invalid-position", "That playback position is invalid.");
+      }
+      room.position = position;
+      room.playing = false;
+      room.updatedAt = now();
+      room.externalCountdown = null;
+      room.externalStarted = true;
+      for (const member of room.members.values()) {
+        member.externalReady = false;
+      }
+      room.version += 1;
+
+      const hostMember = room.members.get(socket.data.memberId);
+      const hostName = hostMember?.name || "Host";
+      const formatted = formatTimecode(position);
+      const chatPayload = {
+        id: `sys-${now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: "System",
+        text: `${hostName} jumped the shared clock to ${formatted}. Seek your player to ${formatted}.`,
+        createdAt: now(),
+        system: true,
+      };
+      room.messages.push(chatPayload);
+      room.messages = room.messages.slice(-120);
+      io.to(room.id).emit("chat:message", chatPayload);
+      io.to(room.id).emit("external:seek", { position, formatted, hostName });
+
+      publishPresence(room);
       publishState(room);
     });
 

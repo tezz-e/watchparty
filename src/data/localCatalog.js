@@ -68,3 +68,50 @@ export function externalPlatformUrl(providerName) {
   const url = `https://${platform.domains[0]}/`;
   return mediaProvider(url) === "external" ? url : null;
 }
+
+export function getCatalogBadge(item, localFilenames = new Set()) {
+  if (!item) return { type: "sync-only", label: "SYNC-ONLY", className: "badge-sync-only", hasPlayableSource: false, hasTrailer: false, isSyncOnly: true };
+  const hasLocal = Boolean(item.filename && localFilenames.has(item.filename));
+  const hasRemote = Boolean(item.source);
+  const hasPlayableSource = Boolean(item.hasPlayableSource || item.available || hasLocal || hasRemote);
+  const hasTrailer = Boolean(item.trailerKey);
+
+  if (hasPlayableSource) {
+    return {
+      type: "full",
+      label: "FULL MOVIE",
+      className: "badge-full-movie",
+      hasPlayableSource: true,
+      hasTrailer: false,
+      isSyncOnly: false,
+    };
+  }
+
+  if (hasTrailer) {
+    return {
+      type: "trailer",
+      label: "TRAILER ONLY",
+      className: "badge-trailer-only",
+      hasPlayableSource: false,
+      hasTrailer: true,
+      isSyncOnly: false,
+    };
+  }
+
+  return {
+    type: "sync-only",
+    label: "SYNC-ONLY",
+    className: "badge-sync-only",
+    hasPlayableSource: false,
+    hasTrailer: false,
+    isSyncOnly: true,
+  };
+}
+
+export function getSyncOptions(item) {
+  if (!item) return [];
+  return (item.availability || [])
+    .map(name => ({ name, url: externalPlatformUrl(name) }))
+    .filter(opt => Boolean(opt.url));
+}
+

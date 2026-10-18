@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { isMixedContent, mediaProvider, streamingPlatform, validMediaUrl, youtubeVideoId } from "../data/catalog.js";
-import { catalog, searchCatalog } from "../data/localCatalog.js";
+import { catalog, externalPlatformUrl, getCatalogBadge, getSyncOptions, searchCatalog } from "../data/localCatalog.js";
 import { fetchMediaTitle } from "../utils/mediaTitle.js";
 import { Icon } from "./Primitives.jsx";
 
@@ -9,6 +9,7 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
   const [source, setSource] = useState("");
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
+  const [selectedTmdb, setSelectedTmdb] = useState(null);
   const [isFetchingTitle, setIsFetchingTitle] = useState(false);
   const userEditedTitle = useRef(false);
   const titleEditCountRef = useRef(0);
@@ -52,14 +53,36 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
     onClose();
   };
 
-  const handleSelectCatalog = item => {
-    const finalSource = item.source || (item.trailerKey ? `https://www.youtube.com/watch?v=${item.trailerKey}` : "");
-    if (!finalSource) return;
-    onUpdate({ title: item.title, source: finalSource });
+  const handleCardClick = item => {
+    const badge = getCatalogBadge(item);
+    if (badge.hasPlayableSource) {
+      onUpdate({ title: item.title, source: item.source });
+      onClose();
+      return;
+    }
+    setSelectedTmdb(prev => (prev?.id === item.id ? null : item));
+  };
+
+  const handleWatchTrailer = item => {
+    if (!item?.trailerKey) return;
+    onUpdate({
+      title: `${item.title} (Trailer)`,
+      source: `https://www.youtube.com/watch?v=${item.trailerKey}`,
+    });
     onClose();
   };
 
-  const catalogPicks = searchCatalog(catalog, { query }).slice(0, 12);
+  const handleSwitchSync = (item, service) => {
+    const serviceUrl = service?.url || externalPlatformUrl("Netflix") || "https://netflix.com/";
+    const serviceName = service?.name ? ` (${service.name} Sync)` : " (Streaming Sync)";
+    onUpdate({
+      title: `${item.title}${serviceName}`,
+      source: serviceUrl,
+    });
+    onClose();
+  };
+
+  const catalogPicks = searchCatalog(catalog, { query });
 
   return (
     <div className="modal-backdrop" data-theme={theme} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -184,21 +207,93 @@ export function ChangeMediaModal({ isOpen, onClose, currentSource = "", currentT
                 placeholder="Search movies, trailers, and open media..."
               />
             </div>
-            <div className="catalog-mini-grid">
-              {catalogPicks.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="catalog-mini-card"
-                  onClick={() => handleSelectCatalog(item)}
-                >
-                  <img src={item.poster || "/catalog/posters/big-buck-bunny.svg"} alt="" />
-                  <div className="mini-card-info">
-                    <strong>{item.title}</strong>
-                    <span>{item.category} {item.year ? `· ${item.year}` : ""}</span>
+
+            {selectedTmdb && (
+              <div className="catalog-choice-panel" role="region" aria-label="Media options for selected movie">
+                <div className="choice-panel-head">
+                  <div className="choice-panel-info">
+                    <span className={`catalog-pill-badge ${getCatalogBadge(selectedTmdb).className}`}>
+                      {getCatalogBadge(selectedTmdb).label}
+                    </span>
+                    <strong>{selectedTmdb.title}</strong>
+                    {selectedTmdb.year && <span className="choice-panel-year">({selectedTmdb.year})</span>}
                   </div>
-                </button>
-              ))}
+                  <button
+                    type="button"
+                    className="choice-panel-close"
+                    onClick={() => setSelectedTmdb(null)}
+                    aria-label="Dismiss selection"
+                  >
+                    <Icon name="close" size={13} />
+                  </button>
+                </div>
+
+                <p className="choice-honest-copy">
+                  Full movie requires a streaming subscription; trailer plays directly here.
+                </p>
+
+                <div className="choice-panel-actions">
+                  {selectedTmdb.trailerKey && (
+                    <button
+                      type="button"
+                      className="choice-action-btn trailer-btn"
+                      onClick={() => handleWatchTrailer(selectedTmdb)}
+                    >
+                      <Icon name="play" size={14} />
+                      <span>Watch trailer together</span>
+                    </button>
+                  )}
+
+                  {getSyncOptions(selectedTmdb).map(service => (
+                    <button
+                      type="button"
+                      key={service.name}
+                      className="choice-action-btn sync-btn"
+                      onClick={() => handleSwitchSync(selectedTmdb, service)}
+                      title={`Switch to sync-only watch party on ${service.name}`}
+                    >
+                      <Icon name="external" size={13} />
+                      <span>Switch to sync-only watch party ({service.name})</span>
+                    </button>
+                  ))}
+
+                  {getSyncOptions(selectedTmdb).length === 0 && (
+                    <button
+                      type="button"
+                      className="choice-action-btn sync-btn"
+                      onClick={() => handleSwitchSync(selectedTmdb, { name: "Streaming", url: externalPlatformUrl("Netflix") || "https://netflix.com/" })}
+                    >
+                      <Icon name="external" size={13} />
+                      <span>Switch to sync-only watch party</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="catalog-mini-grid">
+              {catalogPicks.map(item => {
+                const badge = getCatalogBadge(item);
+                const isSelected = selectedTmdb?.id === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`catalog-mini-card ${badge.className} ${isSelected ? "selected" : ""}`}
+                    onClick={() => handleCardClick(item)}
+                    aria-label={badge.hasPlayableSource ? `Play full movie: ${item.title}` : `Select: ${item.title}`}
+                  >
+                    <div className="mini-card-thumb">
+                      <img src={item.poster || "/catalog/posters/big-buck-bunny.svg"} alt="" loading="lazy" />
+                      <span className={`catalog-pill-badge ${badge.className}`}>{badge.label}</span>
+                    </div>
+                    <div className="mini-card-info">
+                      <strong>{item.title}</strong>
+                      <span>{item.category} {item.year ? `· ${item.year}` : ""}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
