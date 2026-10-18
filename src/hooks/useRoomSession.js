@@ -302,7 +302,10 @@ export function useRoomSession(profile, room) {
             roomPosition: stateRef.current.position,
             hasRemote: hasRemoteRef.current,
             player: mediaPlayer,
-            onRemotePlay: pos => (sendPlaybackRef.current || sendPlayback)(true, pos),
+            onRemotePlay: pos => {
+              mediaPlayer.play();
+              (sendPlaybackRef.current || sendPlayback)(true, pos);
+            },
             onRemotePause: pos => (sendPlaybackRef.current || sendPlayback)(false, pos),
           });
         },
@@ -398,6 +401,7 @@ export function useRoomSession(profile, room) {
       const enforce = () => {
         const activePlayer = getPlayer();
         if (!activePlayer) return;
+        if (stateRef.current.playing) return;
         enforcePausedPlayback(activePlayer, state.position);
       };
       enforce();

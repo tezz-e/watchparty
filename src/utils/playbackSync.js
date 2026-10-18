@@ -85,6 +85,8 @@ export function enforcePausedPlayback(player, roomPosition) {
   }
 }
 
+const USER_GESTURE_MIN_MS = 1200;
+
 export function handlePlayerStateChange({
   eventState,
   roomPlaying,
@@ -94,8 +96,15 @@ export function handlePlayerStateChange({
   onRemotePlay,
   onRemotePause,
 }) {
+  // A player event long after our last programmatic command is a click inside the embed.
+  const userGesture = Boolean(hasRemote) && (player?.msSinceCommand?.() ?? Infinity) > USER_GESTURE_MIN_MS;
+
   if (eventState === 1) {
     if (!roomPlaying) {
+      if (userGesture) {
+        onRemotePlay?.(player?.currentTime?.() ?? roomPosition);
+        return;
+      }
       player?.pause();
       const current = player?.currentTime?.() ?? 0;
       if (Number.isFinite(roomPosition) && Math.abs(current - roomPosition) > 1.0) {
@@ -104,7 +113,7 @@ export function handlePlayerStateChange({
       }
     }
   } else if (eventState === 3) {
-    if (!roomPlaying) {
+    if (!roomPlaying && !userGesture) {
       player?.pause();
     }
   } else if (eventState === 2) {

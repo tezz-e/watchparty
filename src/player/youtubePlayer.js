@@ -1,4 +1,7 @@
 const API_URL = "https://www.youtube.com/iframe_api";
+// Player events that arrive this soon after our own play/pause/seek call are treated as echoes of that
+// call. Anything later is a click inside the embed.
+const COMMAND_ECHO_WINDOW_MS = 1200;
 let apiPromise;
 
 function loadYouTubeIframeApi() {
@@ -48,6 +51,8 @@ export function createYoutubePlayer(container, videoId, {
   let instance = null;
   let isReady = false;
   let destroyed = false;
+  let lastCommandAt = Date.now();
+  const stampCommand = () => { lastCommandAt = Date.now(); };
   let pendingState = {
     playback: null,
     seekPosition: null,
@@ -62,6 +67,7 @@ export function createYoutubePlayer(container, videoId, {
       duration: () => 0,
       getTitle: () => "",
       getPlayerState: () => -1,
+      msSinceCommand: () => Infinity,
       seek: () => {},
       setPlaybackRate: () => {},
       play: () => {},
@@ -82,6 +88,7 @@ export function createYoutubePlayer(container, videoId, {
       events: {
         onReady: onReadyEvent => {
           if (destroyed) return;
+          stampCommand();
           if (!instance && onReadyEvent?.target) {
             instance = onReadyEvent.target;
           }
@@ -108,7 +115,11 @@ export function createYoutubePlayer(container, videoId, {
         },
         onStateChange: onStateChangeEvent => {
           if (destroyed) return;
-          if (pendingState.playback === "pause" && onStateChangeEvent.data === 1) {
+          if (
+            pendingState.playback === "pause"
+            && onStateChangeEvent.data === 1
+            && Date.now() - lastCommandAt < COMMAND_ECHO_WINDOW_MS
+          ) {
             instance?.pauseVideo?.();
           }
           onStateChange(onStateChangeEvent);
@@ -141,8 +152,10 @@ export function createYoutubePlayer(container, videoId, {
       if (destroyed) return -1;
       return instance?.getPlayerState?.() ?? -1;
     },
+    msSinceCommand: () => Date.now() - lastCommandAt,
     seek: position => {
       if (destroyed) return;
+      stampCommand();
       pendingState.seekPosition = position;
       if (!instance?.seekTo) return;
       const result = instance.seekTo(position, true);
@@ -159,12 +172,14 @@ export function createYoutubePlayer(container, videoId, {
     },
     play: () => {
       if (destroyed) return;
+      stampCommand();
       pendingState.playback = "play";
       if (!instance?.playVideo) return;
       return instance.playVideo();
     },
     pause: () => {
       if (destroyed) return;
+      stampCommand();
       pendingState.playback = "pause";
       if (!instance?.pauseVideo) return;
       return instance.pauseVideo();

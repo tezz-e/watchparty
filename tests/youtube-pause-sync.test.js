@@ -22,18 +22,20 @@ async function availablePort() {
   return port;
 }
 
+let serverOutput = "";
+
 async function waitForHealth(url) {
-  const deadline = Date.now() + 5_000;
+  const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${url}/health`);
       if (response.ok) return;
-    } catch {
-      if (child.exitCode !== null) throw new Error(`Watch party server exited (${child.exitCode})`);
+    } catch (error) {
+      if (child.exitCode !== null) throw new Error(`Watch party server exited (${child.exitCode}): ${serverOutput || error.message}`);
     }
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  throw new Error("Watch party server did not become healthy in time.");
+  throw new Error(`Watch party server did not become healthy in time: ${serverOutput}`);
 }
 
 function eventOnce(socket, name, predicate = () => true, timeoutMs = 2_000) {
@@ -100,6 +102,8 @@ before(async () => {
     env: { ...process.env, PORT: String(port) },
     stdio: "pipe",
   });
+  child.stdout.on("data", chunk => { serverOutput += chunk.toString(); });
+  child.stderr.on("data", chunk => { serverOutput += chunk.toString(); });
   baseUrl = `http://127.0.0.1:${port}`;
   await waitForHealth(baseUrl);
 });
